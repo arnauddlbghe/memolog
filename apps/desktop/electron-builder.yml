@@ -1,0 +1,52 @@
+appId: com.memolog.app
+# Le monorepo hisse `electron` à la racine : electron-builder ne le trouve
+# pas seul, on lui donne la version explicitement.
+electronVersion: 44.4.5
+productName: Memolog
+copyright: Memolog
+
+directories:
+  buildResources: resources
+  output: release
+
+# Seuls le bundle et les dépendances réellement exécutées au runtime sont
+# livrés : tout le reste (Vue, CodeMirror, MiniSearch) est déjà dans le bundle.
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+
+extraResources:
+  - from: resources
+    to: .
+    filter:
+      - '*.png'
+
+asar: true
+npmRebuild: false
+
+mac:
+  category: public.app-category.productivity
+  target:
+    - dmg
+    - zip
+  icon: resources/icon.png
+  # L'app vit dans la barre système : pas d'entrée permanente au Dock imposée.
+  extendInfo:
+    LSUIElement: false
+
+win:
+  target:
+    - nsis
+  icon: resources/icon.png
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Utility
+  icon: resources/icon.png

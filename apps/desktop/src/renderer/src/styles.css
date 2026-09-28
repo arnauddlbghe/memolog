@@ -1,0 +1,199 @@
+/*
+ * Thème « papier » : un fond chaud, une seule couleur d'accent, aucune ombre
+ * inutile. Les deux thèmes sont définis en variables, le thème système est
+ * appliqué par `data-theme` sur <html> depuis le store des réglages.
+ */
+:root {
+  --bg: #faf9f7;
+  --bg-sunken: #f1efea;
+  --bg-raised: #ffffff;
+  --border: #e2ded6;
+  --border-strong: #cfc9bd;
+  --text: #22201d;
+  --text-muted: #6f6a61;
+  --text-faint: #9a938a;
+  --accent: #b9702a;
+  --accent-soft: #f6e7d5;
+  --danger: #a33a2a;
+  --warning-bg: #fdf1dc;
+  --warning-border: #e6c690;
+  --radius: 8px;
+  --radius-sm: 5px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --bg: #1b1b1f;
+  --bg-sunken: #161619;
+  --bg-raised: #232328;
+  --border: #33333a;
+  --border-strong: #45454e;
+  --text: #ece9e4;
+  --text-muted: #a7a29a;
+  --text-faint: #7c766e;
+  --accent: #e0a15e;
+  --accent-soft: #3a2f22;
+  --danger: #e08070;
+  --warning-bg: #3a2f1c;
+  --warning-border: #6b5424;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 6px 9px;
+}
+
+/* --- Éléments réutilisés ------------------------------------------------- */
+.btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.btn:hover {
+  border-color: var(--accent);
+}
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.btn--primary:hover {
+  filter: brightness(1.06);
+}
+
+.btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.btn--ghost:hover {
+  background: var(--bg-sunken);
+  color: var(--text);
+}
+
+.btn--danger {
+  color: var(--danger);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.faint {
+  color: var(--text-faint);
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+/* --- Éditeur CodeMirror --------------------------------------------------- */
+.cm-editor {
+  height: 100%;
+  background: transparent;
+}
+
+.cm-editor.cm-focused {
+  outline: none;
+}
+
+.cm-scroller {
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.65;
+  padding: 16px 0 40vh;
+}
+
+.cm-content {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 0 28px;
+  caret-color: var(--accent);
+}
+
+.cm-gutters {
+  display: none;
+}
+
+.cm-activeLine {
+  background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
+}
+
+.memolog-checkbox {
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  margin: 0 2px -1px 0;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--bg-raised);
+  cursor: pointer;
+  vertical-align: baseline;
+}
+
+.memolog-checkbox:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.memolog-checkbox:checked::after {
+  content: '';
+  display: block;
+  width: 3px;
+  height: 6px;
+  margin: 0 auto;
+  border: solid #fff;
+  border-width: 0 1.5px 1.5px 0;
+  transform: translateY(0.5px) rotate(45deg);
+}
