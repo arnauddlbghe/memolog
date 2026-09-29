@@ -1,4 +1,4 @@
-import { MemologError } from '@memolog/core'
+import { CONVERSATION_STATES, MemologError, type ConversationState } from '@memolog/core'
 
 /**
  * Validation des arguments qui traversent l'IPC.
@@ -47,24 +47,13 @@ export function asOptionalNumber(value: unknown, field: string): number | undefi
   return value === undefined || value === null ? undefined : asNumber(value, field)
 }
 
-const TASK_STATES = ['a-faire', 'en-cours', 'reportee', 'terminee', 'abandonnee']
-
-export function asTaskState(value: unknown): string {
+/** Un état de conversation, refusé s'il n'est pas l'un des quatre. */
+export function asState(value: unknown): ConversationState {
   const state = asString(value, 'state')
-  if (!TASK_STATES.includes(state)) {
-    throw new MemologError('invalid-path', `État de tâche inconnu : ${state}`)
+  if (!CONVERSATION_STATES.includes(state as ConversationState)) {
+    throw new MemologError('invalid-path', `État inconnu : ${state}`)
   }
-  return state
-}
-
-export function asStringArray(value: unknown, field: string): string[] {
-  if (!Array.isArray(value)) {
-    throw new MemologError('invalid-path', `Champ « ${field} » : liste attendue.`)
-  }
-  if (value.length > 500) {
-    throw new MemologError('invalid-path', `Champ « ${field} » : liste trop longue.`)
-  }
-  return value.map((item) => asString(item, field))
+  return state as ConversationState
 }
 
 /** Garde-fou de taille : une note de plus de 8 Mo n'est pas un usage normal. */

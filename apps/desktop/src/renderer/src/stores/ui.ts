@@ -1,26 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
 
-/** Les vues principales de l'application. */
-export type ViewName = 'day' | 'notes' | 'tasks' | 'projects' | 'settings'
+/** Ce qu'occupe le panneau principal. */
+export type ViewName = 'conversation' | 'settings'
 
-/**
- * Navigation et état d'interface. Les vues secondaires sont chargées à la
- * demande : ce store ne retient que laquelle est active.
- */
+/** Navigation et messages passagers. */
 export const useUiStore = defineStore('ui', () => {
-  const view = ref<ViewName>('day')
-  const selectedProject = ref<string | null>(null)
+  const view = ref<ViewName>('conversation')
   const toast = shallowRef<{ text: string; kind: 'info' | 'error' } | null>(null)
   let toastTimer: ReturnType<typeof setTimeout> | null = null
 
   function go(next: ViewName): void {
     view.value = next
-  }
-
-  function openProject(name: string): void {
-    selectedProject.value = name
-    view.value = 'projects'
   }
 
   function notify(text: string, kind: 'info' | 'error' = 'info'): void {
@@ -31,5 +22,5 @@ export const useUiStore = defineStore('ui', () => {
     }, kind === 'error' ? 6000 : 2600)
   }
 
-  return { view, selectedProject, toast, go, openProject, notify }
+  return { view, toast, go, notify }
 })

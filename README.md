@@ -1,7 +1,8 @@
 # Memolog
 
-Prise de notes personnelle, locale et rapide. Un raccourci clavier global
-affiche la fenêtre par-dessus tout le reste, le même raccourci la masque.
+Un bloc-notes par sujet, avec un état et une date. Application desktop
+locale : un raccourci clavier global l'affiche par-dessus tout le reste, le
+même la masque.
 
 - **100 % local** : pas de compte, pas de serveur, rien n'est envoyé sur
   Internet.
@@ -10,33 +11,46 @@ affiche la fenêtre par-dessus tout le reste, le même raccourci la masque.
 - **Rien n'est supprimé définitivement** : toute suppression passe par la
   corbeille du système.
 
-## Ce que fait l'application
+## Le modèle
 
-| Vue | Contenu |
-|---|---|
-| **Jour** | Les notes libres de la journée et l'activité (tâches, éditions) fusionnées dans l'ordre chronologique, avec navigation entre les jours. |
-| **Notes** | Arborescence des dossiers et éditeur Markdown avec sauvegarde automatique. |
-| **Tâches** | Tâches actives filtrables par état et par projet, et onglet « qui dorment » pour celles qu'on a laissées de côté. |
-| **Projets** | Tous les projets — sections de `taches.md`, tags du journal, fiches — triés par dernière activité. |
-| **Paramètres** | Dossier de rangement, raccourcis, démarrage automatique, thème, archivage. |
+**Une conversation = un fichier.** Un bloc-notes libre, en Markdown, sur un
+sujet. Il porte quatre métadonnées, et rien d'autre : un **nom**, une **date
+de création**, un **état**, et l'**historique** des changements d'état.
 
-L'écran est encadré par deux barres, chacune avec son rôle :
+```
+┌───────────────────────┬──────────────────────────────────────────┐
+│ + Nouvelle conversation│ Migration serveur      ● En cours       │
+│                        │ Créée le 2026-09-14 · 3 changements     │
+│ AUJOURD'HUI            │──────────────────────────────────────────│
+│  ● Import CSV          │  H  B  I  </>  •  ☑  ❝  🔗   [Markdown] │
+│  ● Migration serveur   │──────────────────────────────────────────│
+│                        │ # Migration serveur                      │
+│ HIER                   │                                          │
+│  ● Point client        │ Le client attend le devis signé.         │
+│                        │                                          │
+│ 12 SEPTEMBRE           │ ☑ Chiffrer la bascule                    │
+│  ● Recrutement         │ ☐ Planifier la fenêtre                   │
+├───────────────────────┴──────────────────────────────────────────┤
+│ 3 en cours                                          Paramètres    │
+└───────────────────────────────────────────────────────────────────┘
+```
 
-- **en haut, la recherche** : plein texte sur le titre et le contenu,
-  tolérante aux fautes et aux accents, résultats à la frappe
-  (`Cmd/Ctrl + K`) ;
-- **en bas, le composeur** : deux modes. *Tâche* prend un titre, un projet et
-  une **description** libre sur plusieurs lignes (`Cmd/Ctrl + T`) ; *Note du
-  jour* ajoute une entrée horodatée au journal, ses lignes suivantes
-  devenant des sous-puces (`Cmd/Ctrl + N`).
-
-Dans l'éditeur, `/t Relancer l'infra #infra` suivi d'Entrée crée la tâche et
-remplace la ligne par une référence `@tNN` ; taper `@` propose les tâches
-actives.
-
-Le **format des fichiers** est documenté dans [`docs/format.md`](docs/format.md).
-C'est le contrat : il vaut pour l'application comme pour les futures
-intégrations (CLI, serveur MCP, hook Claude Code).
+- **La barre latérale** liste les conversations **groupées par jour de
+  création**, la plus récente en haut. Chaque ligne porte une **bulle
+  colorée** qui dit son état d'un coup d'œil.
+- **Quatre états** : `À faire` (gris), `En cours` (ambre), `À reprendre`
+  (rouge), `Terminé` (vert). Un clic sur la bulle en tête de conversation les
+  propose ; chaque changement est **daté et inscrit dans le fichier**.
+- **L'historique** se déplie sous le titre : quand la conversation a
+  commencé, et quand son état a changé.
+- **Deux modes d'écriture**, par le bouton en haut à droite. *Rendu visuel* :
+  les titres, le gras, le code et les cases à cocher s'affichent mis en
+  forme, et la syntaxe réapparaît sur la ligne où se trouve le curseur.
+  *Markdown* : le texte brut, tel qu'il est dans le fichier. La barre d'outils
+  (titre, gras, italique, code, liste, case, citation, lien) fonctionne dans
+  les deux.
+- Le corps est **à vous** : l'application ne le réécrit jamais d'elle-même,
+  elle ne touche qu'à l'en-tête.
 
 ## Installation
 
@@ -63,8 +77,8 @@ pnpm format       # Prettier
 ```
 
 Au premier lancement, un écran explique le fonctionnement de l'application et
-demande où ranger les notes. En développement, le lancement au démarrage n'est
-jamais appliqué au système.
+demande où ranger les fichiers. En développement, le lancement au démarrage
+n'est jamais appliqué au système.
 
 La mesure mémoire (`app.getAppMetrics()`) est disponible dans
 **Paramètres → Mémoire**, uniquement en développement.
@@ -82,6 +96,28 @@ Cibles par système, depuis la machine correspondante :
 pnpm --filter @memolog/desktop dist:mac     # .dmg + .zip
 pnpm --filter @memolog/desktop dist:win     # installateur NSIS
 pnpm --filter @memolog/desktop dist:linux   # AppImage + .deb
+```
+
+### Signature sur macOS
+
+Les paquets sont **volontairement non signés** (`mac.identity: null` dans
+`electron-builder.yml`). Sans ce réglage, electron-builder cherche un
+certificat *Developer ID Application* dans le trousseau et déclenche une
+demande d'autorisation : un compte Apple Developer payant serait nécessaire.
+
+Pour un usage personnel, ce n'est pas utile. Au premier lancement d'un `.dmg`
+**téléchargé** depuis une autre machine, macOS affichera un avertissement —
+clic droit sur l'app puis « Ouvrir », ou :
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Memolog.app
+```
+
+Avec un certificat installé :
+
+```bash
+CSC_NAME="Developer ID Application: Votre Nom (TEAMID)" \
+  pnpm --filter @memolog/desktop dist:mac:signed
 ```
 
 ## Architecture
@@ -115,7 +151,7 @@ est un paramètre partout où il apparaît.
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
 - Le renderer n'accède jamais au système de fichiers : tout passe par des
   appels IPC typés, validés côté principal, qui refusent les chemins absolus,
-  les `..` et tout ce qui sortirait du dossier de notes.
+  les `..` et tout ce qui sortirait du dossier choisi.
 - Une seule `BrowserWindow`, masquée et jamais détruite.
 - Aucune ressource distante : la politique de sécurité du contenu n'autorise
   que ce qui est embarqué dans l'application.
@@ -124,9 +160,9 @@ est un paramètre partout où il apparaît.
 
 | Quoi | Où |
 |---|---|
-| Notes, journal, tâches, fiches projet | Le dossier choisi (par défaut `~/Memolog`) |
+| Conversations | `<dossier>/conversations/<nom>.md` |
+| Notes libres | `<dossier>/…` n'importe où ailleurs |
 | Journal d'activité | `<dossier>/.memolog/activite/AAAA-MM-JJ.jsonl` |
-| Compteur d'identifiants de tâches | `<dossier>/.memolog/state.json` |
 | Réglages de l'application | Dossier de configuration de l'OS, `settings.json` |
 | Cache d'index (jetable) | Dossier de configuration de l'OS, `index.cache.json` |
 

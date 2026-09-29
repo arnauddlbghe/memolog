@@ -10,17 +10,9 @@ import type {
   NoteRepository,
   WalkedNote
 } from '../../domain/ports.js'
-import type { NoteContent, RelPath, TreeEntry, WriteResult } from '../../domain/types.js'
+import type { NoteContent, TreeEntry, WriteResult } from '../../domain/types.js'
 import type { Vault } from '../fs/vault.js'
-import {
-  createFolder,
-  createNote,
-  deleteEntry,
-  moveEntry,
-  readNote,
-  renameEntry,
-  writeNote
-} from './notes.js'
+import { createNote, deleteEntry, readNote, writeNote } from './notes.js'
 import { listDir, summarizeVault, walkNotes } from './tree.js'
 
 export class MarkdownNoteRepository implements NoteRepository {
@@ -44,17 +36,8 @@ export class MarkdownNoteRepository implements NoteRepository {
     return createNote(this.vault, dir, name, content)
   }
 
-  createFolder(dir: string, name: string): Promise<RelPath> {
-    return createFolder(this.vault, dir, name)
-  }
 
-  rename(path: string, newName: string): Promise<RelPath> {
-    return renameEntry(this.vault, path, newName)
-  }
 
-  move(path: string, newDir: string): Promise<RelPath> {
-    return moveEntry(this.vault, path, newDir)
-  }
 
   remove(path: string): Promise<void> {
     return deleteEntry(this.vault, path)

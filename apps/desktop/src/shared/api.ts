@@ -1,20 +1,16 @@
 import type {
   AppInfo,
-  DayView,
+  Conversation,
+  ConversationState,
+  ConversationSummary,
   IndexStatus,
   MemologEventName,
   MemologEvents,
   MemoryMetrics,
   NoteContent,
-  ProjectDetail,
-  ProjectSummary,
-  ResolvedRef,
   SearchHit,
   Settings,
   ShortcutStatus,
-  Task,
-  TaskState,
-  TaskWithAge,
   TreeEntry,
   VaultChangePreview,
   WriteOutcome
@@ -34,13 +30,9 @@ export interface MemologApi {
   }
 
   vault: {
-    /** Ouvre le sélecteur de dossier natif. `null` si l'utilisateur annule. */
     choose(): Promise<string | null>
-    /** Ce qu'implique un changement de dossier, avant de le décider. */
     previewChange(newRoot: string): Promise<VaultChangePreview>
-    /** Change de dossier, en déplaçant ou non le contenu existant. */
     setRoot(newRoot: string, move: boolean): Promise<Settings>
-    /** Ouvre le dossier de notes dans l'explorateur du système. */
     reveal(relPath?: string): Promise<void>
   }
 
@@ -48,50 +40,27 @@ export interface MemologApi {
     complete(root: string, launchAtLogin: boolean): Promise<Settings>
   }
 
-  tree: {
-    list(dir: string): Promise<TreeEntry[]>
-  }
-
-  notes: {
-    read(path: string): Promise<NoteContent>
-    write(path: string, content: string, baseMtimeMs?: number): Promise<WriteOutcome>
-    create(dir: string, name?: string): Promise<NoteContent>
-    createFolder(dir: string, name: string): Promise<string>
-    rename(path: string, newName: string): Promise<string>
-    move(path: string, newDir: string): Promise<string>
+  conversations: {
+    list(): Promise<ConversationSummary[]>
+    read(path: string): Promise<Conversation>
+    create(name: string): Promise<ConversationSummary>
+    /** Enregistre le corps. `baseMtimeMs` protège contre l'écrasement. */
+    setContent(path: string, content: string, baseMtimeMs?: number): Promise<WriteOutcome>
+    setState(path: string, state: ConversationState): Promise<Conversation>
+    rename(path: string, name: string): Promise<string>
     remove(path: string): Promise<void>
-  }
-
-  journal: {
-    /** Note du jour, créée si besoin. */
-    today(): Promise<NoteContent>
-    open(date: string): Promise<NoteContent>
-    /** Ajoute une entrée horodatée à la journée en cours. */
-    append(text: string): Promise<{ path: string; line: number }>
-    /** Vue Jour : notes libres et activité fusionnées. */
-    day(date?: string): Promise<DayView>
-    /** Journées existantes, de la plus récente à la plus ancienne. */
+    /** Jours de création connus, du plus récent au plus ancien. */
     days(): Promise<string[]>
   }
 
-  tasks: {
-    list(options?: { includeClosed?: boolean; project?: string }): Promise<Task[]>
-    /** Tâches actives sans mise à jour depuis le délai configuré. */
-    dormant(days?: number): Promise<TaskWithAge[]>
-    create(text: string, project?: string, description?: string): Promise<Task>
-    setState(id: string, state: TaskState): Promise<Task>
-    /** Clic sur la case : état suivant du cycle. */
-    cycle(id: string): Promise<Task>
-    rename(id: string, text: string): Promise<Task>
-    describe(id: string, description: string): Promise<Task>
-    /** Résout des références `@tNN` pour les afficher en étiquettes. */
-    resolve(ids: string[]): Promise<ResolvedRef[]>
-    archive(): Promise<{ archived: Task[]; targets: string[] }>
-  }
-
-  projects: {
-    list(): Promise<ProjectSummary[]>
-    detail(name: string): Promise<ProjectDetail | null>
+  /** Accès brut aux fichiers : l'échappatoire, pas un lieu de vie. */
+  notes: {
+    list(dir: string): Promise<TreeEntry[]>
+    read(path: string): Promise<NoteContent>
+    write(path: string, content: string, baseMtimeMs?: number): Promise<WriteOutcome>
+    create(dir: string, name?: string): Promise<NoteContent>
+    remove(path: string): Promise<void>
+    all(): Promise<TreeEntry[]>
   }
 
   search: {
@@ -105,7 +74,6 @@ export interface MemologApi {
     metrics(): Promise<MemoryMetrics>
     hide(): Promise<void>
     quit(): Promise<void>
-    /** Teste un raccourci global sans l'enregistrer durablement. */
     testShortcut(shortcut: string): Promise<ShortcutStatus>
     openExternal(url: string): Promise<void>
   }
@@ -123,33 +91,27 @@ export const CHANNELS = {
   vaultSetRoot: 'memolog:vault:set-root',
   vaultReveal: 'memolog:vault:reveal',
   onboardingComplete: 'memolog:onboarding:complete',
-  treeList: 'memolog:tree:list',
-  noteRead: 'memolog:note:read',
-  noteWrite: 'memolog:note:write',
-  noteCreate: 'memolog:note:create',
-  folderCreate: 'memolog:folder:create',
-  entryRename: 'memolog:entry:rename',
-  entryMove: 'memolog:entry:move',
-  entryRemove: 'memolog:entry:remove',
-  journalToday: 'memolog:journal:today',
-  journalOpen: 'memolog:journal:open',
-  journalAppend: 'memolog:journal:append',
-  journalDay: 'memolog:journal:day',
-  journalDays: 'memolog:journal:days',
-  tasksList: 'memolog:tasks:list',
-  tasksDormant: 'memolog:tasks:dormant',
-  tasksCreate: 'memolog:tasks:create',
-  tasksSetState: 'memolog:tasks:set-state',
-  tasksCycle: 'memolog:tasks:cycle',
-  tasksRename: 'memolog:tasks:rename',
-  tasksDescribe: 'memolog:tasks:describe',
-  tasksResolve: 'memolog:tasks:resolve',
-  tasksArchive: 'memolog:tasks:archive',
-  projectsList: 'memolog:projects:list',
-  projectsDetail: 'memolog:projects:detail',
+
+  conversationsList: 'memolog:conversations:list',
+  conversationsRead: 'memolog:conversations:read',
+  conversationsCreate: 'memolog:conversations:create',
+  conversationsSetContent: 'memolog:conversations:set-content',
+  conversationsSetState: 'memolog:conversations:set-state',
+  conversationsRename: 'memolog:conversations:rename',
+  conversationsRemove: 'memolog:conversations:remove',
+  conversationsDays: 'memolog:conversations:days',
+
+  notesList: 'memolog:notes:list',
+  notesRead: 'memolog:notes:read',
+  notesWrite: 'memolog:notes:write',
+  notesCreate: 'memolog:notes:create',
+  notesRemove: 'memolog:notes:remove',
+  notesAll: 'memolog:notes:all',
+
   searchQuery: 'memolog:search:query',
   searchStatus: 'memolog:search:status',
   searchRebuild: 'memolog:search:rebuild',
+
   appInfo: 'memolog:app:info',
   appMetrics: 'memolog:app:metrics',
   appHide: 'memolog:app:hide',

@@ -1,28 +1,29 @@
 import type {
   AnyActivityEvent,
-  JournalEntry,
+  Conversation,
+  ConversationState,
+  ConversationSummary,
   NoteContent,
-  ProjectSummary,
   SearchHit,
-  Task,
-  TaskRef,
-  TaskState,
+  StateChange,
   TreeEntry
 } from '@memolog/core/domain'
 
 export type {
   AnyActivityEvent,
-  JournalEntry,
+  Conversation,
+  ConversationState,
+  ConversationSummary,
   NoteContent,
-  ProjectSummary,
   SearchHit,
-  Task,
-  TaskRef,
-  TaskState,
+  StateChange,
   TreeEntry
 }
 
 export type ThemeSetting = 'system' | 'light' | 'dark'
+
+/** Mode d'écriture : rendu visuel, ou Markdown brut. */
+export type EditorMode = 'rendu' | 'brut'
 
 /**
  * Réglages de l'application. Stockés dans le dossier de config de l'OS,
@@ -30,38 +31,29 @@ export type ThemeSetting = 'system' | 'light' | 'dark'
  * de ce dossier.
  */
 export interface Settings {
-  /** Version du fichier de réglages, pour les migrations futures. */
   version: number
-  /** Dossier de rangement des notes, chemin absolu. */
+  /** Dossier de rangement, chemin absolu. */
   root: string
   /** Raccourci global d'affichage/masquage, syntaxe Electron. */
   shortcut: string
-  /** Raccourci global d'ajout d'entrée au journal. Vide = désactivé. */
-  journalShortcut: string
   theme: ThemeSetting
+  /** Mode d'écriture par défaut à l'ouverture d'une conversation. */
+  editorMode: EditorMode
   /** Lancer Memolog à l'ouverture de session. Désactivé par défaut. */
   launchAtLogin: boolean
   /** Au lancement, rester dans la barre système sans ouvrir la fenêtre. */
   startHidden: boolean
   /** L'écran de première ouverture a été validé. */
   onboardingDone: boolean
-  /** Une tâche active sans mise à jour depuis N jours « dort ». */
-  dormantAfterDays: number
-  /** Une tâche fermée depuis N jours part à l'archive. */
-  archiveAfterDays: number
-  /** Archiver automatiquement au démarrage. */
-  autoArchive: boolean
   /** Minutes d'inactivité qui ferment une rafale d'édition. */
   burstWindowMinutes: number
   windowBounds: { width: number; height: number; x?: number; y?: number } | null
 }
 
 export interface VaultChangePreview {
-  /** Dossier actuel. */
   currentRoot: string
   noteCount: number
   folderCount: number
-  /** Le dossier visé est-il vide (ou inexistant) ? */
   targetEmpty: boolean
   targetExists: boolean
 }
@@ -84,7 +76,6 @@ export interface AppInfo {
 }
 
 export interface MemoryMetrics {
-  /** Mémoire vive utilisée par l'ensemble des process, en Mo. */
   totalMb: number
   perProcess: Array<{ type: string; mb: number }>
 }
@@ -92,52 +83,13 @@ export interface MemoryMetrics {
 export interface IndexStatus {
   ready: boolean
   noteCount: number
-  taskCount: number
-  /** Durée de la dernière synchronisation, en millisecondes. */
+  conversationCount: number
   lastSyncMs: number
-}
-
-/** Un élément de la vue Jour : une note libre ou un événement d'activité. */
-export type DayItem =
-  | { kind: 'entry'; at: string; entry: JournalEntry }
-  | { kind: 'event'; at: string; event: AnyActivityEvent }
-
-export interface DayView {
-  date: string
-  path: string
-  items: DayItem[]
-  entryCount: number
-  eventCount: number
-}
-
-export interface TaskWithAge {
-  task: Task
-  ageDays: number | null
-}
-
-export interface ProjectGroup {
-  state: TaskState
-  label: string
-  tasks: TaskWithAge[]
-}
-
-export interface ProjectDetail {
-  summary: ProjectSummary
-  note: { path: string; content: string } | null
-  groups: ProjectGroup[]
-  days: string[]
-}
-
-/** Référence `@tNN` résolue, pour l'affichage en étiquette. */
-export interface ResolvedRef {
-  id: string
-  task: Task | null
 }
 
 export interface ShortcutStatus {
   shortcut: string
   registered: boolean
-  /** Message lisible si l'enregistrement a échoué. */
   error?: string
 }
 
@@ -145,13 +97,12 @@ export interface ShortcutStatus {
 export interface MemologEvents {
   'note:changed': { path: string; mtimeMs: number }
   'note:removed': { path: string }
-  'tree:changed': { dir: string }
+  /** Une conversation a changé : la liste et le fil ouvert se rechargent. */
+  'conversations:changed': { path?: string }
   'index:status': IndexStatus
-  'tasks:changed': Record<string, never>
-  'activity:changed': { date: string }
   'settings:changed': Settings
   'shortcut:status': ShortcutStatus
-  'navigate': { view: 'journal' | 'settings' | 'tasks' | 'search'; path?: string }
+  'navigate': { view: 'settings' | 'search'; path?: string }
 }
 
 export type MemologEventName = keyof MemologEvents

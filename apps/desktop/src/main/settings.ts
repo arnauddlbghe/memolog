@@ -28,15 +28,12 @@ export function defaultSettings(): Settings {
     version: SETTINGS_VERSION,
     root: defaultRoot(),
     shortcut: 'CommandOrControl+Shift+Space',
-    journalShortcut: 'CommandOrControl+Shift+J',
     theme: 'system',
+    editorMode: 'rendu',
     // Aucun réglage système n'est appliqué sans une action explicite.
     launchAtLogin: false,
     startHidden: false,
     onboardingDone: false,
-    dormantAfterDays: 7,
-    archiveAfterDays: 30,
-    autoArchive: false,
     burstWindowMinutes: 10,
     windowBounds: null
   }
@@ -60,15 +57,11 @@ function coerce(raw: unknown): Settings {
     version: SETTINGS_VERSION,
     root: typeof input.root === 'string' && input.root.trim() !== '' ? input.root : base.root,
     shortcut: typeof input.shortcut === 'string' ? input.shortcut : base.shortcut,
-    journalShortcut:
-      typeof input.journalShortcut === 'string' ? input.journalShortcut : base.journalShortcut,
+    editorMode: input.editorMode === 'brut' ? 'brut' : base.editorMode,
     theme: themes.includes(input.theme as ThemeSetting) ? (input.theme as ThemeSetting) : base.theme,
     launchAtLogin: input.launchAtLogin === true,
     startHidden: input.startHidden === true,
     onboardingDone: input.onboardingDone === true,
-    dormantAfterDays: clampNumber(input.dormantAfterDays, base.dormantAfterDays, 1, 365),
-    archiveAfterDays: clampNumber(input.archiveAfterDays, base.archiveAfterDays, 1, 3650),
-    autoArchive: input.autoArchive === true,
     burstWindowMinutes: clampNumber(input.burstWindowMinutes, base.burstWindowMinutes, 1, 240),
     windowBounds:
       bounds && typeof bounds.width === 'number' && typeof bounds.height === 'number'

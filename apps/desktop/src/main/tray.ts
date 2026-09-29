@@ -27,7 +27,6 @@ function trayIcon(): Electron.NativeImage {
 }
 
 export interface TrayActions {
-  onOpenJournal: () => void
   onQuit: () => void
 }
 
@@ -43,7 +42,6 @@ export function createTray(actions: TrayActions): Tray {
 
   const menu = Menu.buildFromTemplate([
     { label: 'Afficher Memolog', click: () => showWindow() },
-    { label: 'Note du jour', click: actions.onOpenJournal },
     { type: 'separator' },
     {
       label: 'Paramètres…',

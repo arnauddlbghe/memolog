@@ -2,24 +2,10 @@ import path from 'node:path'
 
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
 
-import {
-  isMemologError,
-  journalPathFor,
-  parseLocalDate,
-  resolveInRoot,
-  taskAge,
-  type TaskState
-} from '@memolog/core'
+import { isMemologError, resolveInRoot } from '@memolog/core'
 
 import { CHANNELS } from '../shared/api.js'
-import type {
-  AppInfo,
-  MemoryMetrics,
-  ResolvedRef,
-  Settings,
-  TaskWithAge,
-  WriteOutcome
-} from '../shared/types.js'
+import type { AppInfo, MemoryMetrics, Settings, WriteOutcome } from '../shared/types.js'
 import type { AppState } from './app-state.js'
 import { emit } from './events.js'
 import { configDir, getSettings, updateSettings } from './settings.js'
@@ -28,12 +14,10 @@ import {
   asBoolean,
   asContent,
   asObject,
-  asOptionalBoolean,
   asOptionalNumber,
   asOptionalString,
-  asString,
-  asStringArray,
-  asTaskState
+  asState,
+  asString
 } from './validate.js'
 import { getWindow, hideWindow, setQuitting } from './window.js'
 
@@ -59,8 +43,7 @@ export function registerIpc(state: AppState): void {
 
   handle(CHANNELS.settingsUpdate, (args) => {
     const patch = asObject(args) as Partial<Settings>
-    // Le dossier de rangement ne se change que par `vault:set-root`, qui sait
-    // déplacer le contenu et réindexer.
+    // Le dossier de rangement ne se change que par `vault:set-root`.
     delete patch.root
     delete patch.version
     return updateSettings(patch)
@@ -110,12 +93,69 @@ export function registerIpc(state: AppState): void {
     return settings
   })
 
-  // --- Arborescence et notes ------------------------------------------------
-  handle(CHANNELS.treeList, (args) => state.notes.list(asString(asObject(args)['dir'], 'dir')))
+  // --- Conversations --------------------------------------------------------
+  handle(CHANNELS.conversationsList, () => state.conversations.list())
 
-  handle(CHANNELS.noteRead, (args) => state.notes.read(asString(asObject(args)['path'], 'path')))
+  handle(CHANNELS.conversationsRead, (args) =>
+    state.conversations.read(asString(asObject(args)['path'], 'path'))
+  )
 
-  handle(CHANNELS.noteWrite, async (args): Promise<WriteOutcome> => {
+  handle(CHANNELS.conversationsCreate, async (args) => {
+    const created = await state.conversations.create(asString(asObject(args)['name'], 'name'))
+    await state.reindex(created.path)
+    emit('conversations:changed', { path: created.path })
+    return created
+  })
+
+  handle(CHANNELS.conversationsSetContent, async (args): Promise<WriteOutcome> => {
+    const input = asObject(args)
+    const target = asString(input['path'], 'path')
+    const content = asContent(input['content'])
+    const baseMtimeMs = asOptionalNumber(input['baseMtimeMs'], 'baseMtimeMs')
+
+    const result = await state.conversations.setContent(target, content, baseMtimeMs)
+    if (!result.ok) {
+      return { ok: false, path: target, mtimeMs: result.disk.mtimeMs, conflict: result.disk }
+    }
+    await state.reindex(target)
+    emit('conversations:changed', { path: target })
+    return { ok: true, path: result.path, mtimeMs: result.mtimeMs }
+  })
+
+  handle(CHANNELS.conversationsSetState, async (args) => {
+    const input = asObject(args)
+    const target = asString(input['path'], 'path')
+    const after = await state.conversations.setState(target, asState(input['state']))
+    await state.reindex(target)
+    emit('conversations:changed', { path: target })
+    return after
+  })
+
+  handle(CHANNELS.conversationsRename, async (args) => {
+    const input = asObject(args)
+    const from = asString(input['path'], 'path')
+    const to = await state.conversations.rename(from, asString(input['name'], 'name'))
+    state.index.remove(from)
+    await state.reindex(to)
+    emit('conversations:changed', { path: to })
+    return to
+  })
+
+  handle(CHANNELS.conversationsRemove, async (args) => {
+    const target = asString(asObject(args)['path'], 'path')
+    await state.conversations.remove(target)
+    state.index.remove(target)
+    emit('conversations:changed', {})
+  })
+
+  handle(CHANNELS.conversationsDays, () => state.conversations.days())
+
+  // --- Fichiers bruts -------------------------------------------------------
+  handle(CHANNELS.notesList, (args) => state.notes.list(asString(asObject(args)['dir'], 'dir')))
+
+  handle(CHANNELS.notesRead, (args) => state.notes.read(asString(asObject(args)['path'], 'path')))
+
+  handle(CHANNELS.notesWrite, async (args): Promise<WriteOutcome> => {
     const input = asObject(args)
     const notePath = asString(input['path'], 'path')
     const content = asContent(input['content'])
@@ -126,153 +166,44 @@ export function registerIpc(state: AppState): void {
       return { ok: false, path: notePath, mtimeMs: result.disk.mtimeMs, conflict: result.disk }
     }
     state.noteWritten(notePath, content, { mtimeMs: result.mtimeMs, size: result.size })
-    if (notePath === 'taches.md' || notePath.startsWith('taches/')) emit('tasks:changed', {})
+    emit('conversations:changed', { path: notePath })
     return { ok: true, path: result.path, mtimeMs: result.mtimeMs }
   })
 
-  handle(CHANNELS.noteCreate, async (args) => {
+  handle(CHANNELS.notesCreate, async (args) => {
     const input = asObject(args)
     const note = await state.notes.create(
       asString(input['dir'], 'dir'),
       asOptionalString(input['name'], 'name')
     )
     state.noteWritten(note.path, note.content, { mtimeMs: note.mtimeMs, size: note.size })
+    emit('conversations:changed', {})
     return note
   })
 
-  handle(CHANNELS.folderCreate, (args) => {
-    const input = asObject(args)
-    return state.notes.createFolder(asString(input['dir'], 'dir'), asString(input['name'], 'name'))
-  })
-
-  handle(CHANNELS.entryRename, async (args) => {
-    const input = asObject(args)
-    const from = asString(input['path'], 'path')
-    const to = await state.notes.rename(from, asString(input['newName'], 'newName'))
-    await reindexMove(state, from, to)
-    return to
-  })
-
-  handle(CHANNELS.entryMove, async (args) => {
-    const input = asObject(args)
-    const from = asString(input['path'], 'path')
-    const to = await state.notes.move(from, asString(input['newDir'], 'newDir'))
-    await reindexMove(state, from, to)
-    return to
-  })
-
-  handle(CHANNELS.entryRemove, async (args) => {
+  handle(CHANNELS.notesRemove, async (args) => {
     const target = asString(asObject(args)['path'], 'path')
     await state.notes.remove(target)
     state.index.remove(target)
-    emit('tasks:changed', {})
+    emit('conversations:changed', {})
   })
 
-  // --- Journal --------------------------------------------------------------
-  handle(CHANNELS.journalToday, async () => {
-    const day = await state.journal.open()
-    const note = await state.notes.read(day.path)
-    state.noteWritten(note.path, note.content, { mtimeMs: note.mtimeMs, size: note.size })
-    return note
+  /** Liste à plat de tous les fichiers : la surcouche « Fichiers » en a besoin. */
+  handle(CHANNELS.notesAll, async () => {
+    const entries = []
+    for await (const note of state.notes.walk()) {
+      const name = note.path.slice(note.path.lastIndexOf('/') + 1)
+      entries.push({
+        path: note.path,
+        name,
+        title: name.replace(/\.md$/i, ''),
+        kind: 'note' as const,
+        mtimeMs: note.mtimeMs,
+        size: note.size
+      })
+    }
+    return entries.sort((a, b) => b.mtimeMs - a.mtimeMs)
   })
-
-  handle(CHANNELS.journalOpen, async (args) => {
-    const date = parseLocalDate(asString(asObject(args)['date'], 'date'))
-    if (date === null) throw new Error('[invalid-path] Date attendue au format AAAA-MM-JJ.')
-    return state.notes.read(journalPathFor(date))
-  })
-
-  handle(CHANNELS.journalAppend, async (args) => {
-    const text = asString(asObject(args)['text'], 'text')
-    const result = await state.journal.append(text)
-    const note = await state.notes.read(result.path)
-    state.noteWritten(note.path, note.content, { mtimeMs: note.mtimeMs, size: note.size })
-    return { path: result.path, line: result.line }
-  })
-
-  handle(CHANNELS.journalDay, (args) =>
-    state.dayView(asOptionalString(asObject(args)['date'], 'date'))
-  )
-
-  handle(CHANNELS.journalDays, () => state.journal.days())
-
-  // --- Tâches ---------------------------------------------------------------
-  handle(CHANNELS.tasksList, (args) => {
-    const input = asObject(args)
-    const project = asOptionalString(input['project'], 'project')
-    return state.tasks.list({
-      includeClosed: asOptionalBoolean(input['includeClosed']) ?? true,
-      ...(project === undefined ? {} : { project })
-    })
-  })
-
-  handle(CHANNELS.tasksDormant, async (args): Promise<TaskWithAge[]> => {
-    const days = asOptionalNumber(asObject(args)['days'], 'days') ?? getSettings().dormantAfterDays
-    const now = new Date()
-    const tasks = await state.tasks.dormant(days)
-    return tasks.map((task) => ({ task, ageDays: taskAge(task, now) }))
-  })
-
-  handle(CHANNELS.tasksCreate, async (args) => {
-    const input = asObject(args)
-    const task = await state.tasks.create(
-      asString(input['text'], 'text'),
-      asOptionalString(input['project'], 'project'),
-      asOptionalString(input['description'], 'description')
-    )
-    await afterTaskChange(state)
-    return task
-  })
-
-  handle(CHANNELS.tasksSetState, async (args) => {
-    const input = asObject(args)
-    const task = await state.tasks.setState(
-      asString(input['id'], 'id'),
-      asTaskState(input['state']) as TaskState
-    )
-    await afterTaskChange(state)
-    return task
-  })
-
-  handle(CHANNELS.tasksCycle, async (args) => {
-    const task = await state.tasks.cycleState(asString(asObject(args)['id'], 'id'))
-    await afterTaskChange(state)
-    return task
-  })
-
-  handle(CHANNELS.tasksRename, async (args) => {
-    const input = asObject(args)
-    const task = await state.tasks.rename(asString(input['id'], 'id'), asString(input['text'], 'text'))
-    await afterTaskChange(state)
-    return task
-  })
-
-  handle(CHANNELS.tasksDescribe, async (args) => {
-    const input = asObject(args)
-    const task = await state.tasks.describe(
-      asString(input['id'], 'id'),
-      asString(input['description'], 'description')
-    )
-    await afterTaskChange(state)
-    return task
-  })
-
-  handle(CHANNELS.tasksResolve, (args): ResolvedRef[] => {
-    const ids = asStringArray(asObject(args)['ids'], 'ids')
-    return ids.map((id) => ({ id, task: state.noteIndex.task(id) }))
-  })
-
-  handle(CHANNELS.tasksArchive, async () => {
-    const report = await state.tasks.archiveClosed(getSettings().archiveAfterDays)
-    await afterTaskChange(state)
-    return report
-  })
-
-  // --- Projets --------------------------------------------------------------
-  handle(CHANNELS.projectsList, () => state.projects.list())
-  handle(CHANNELS.projectsDetail, (args) =>
-    state.projects.detail(asString(asObject(args)['name'], 'name'))
-  )
 
   // --- Recherche ------------------------------------------------------------
   handle(CHANNELS.searchQuery, (args) => {
@@ -330,26 +261,4 @@ export function registerIpc(state: AppState): void {
       if (target.startsWith(path.resolve(getSettings().root))) await shell.openPath(target)
     }
   })
-}
-
-/** Après une mutation de tâche : réindexer le fichier et prévenir l'interface. */
-async function afterTaskChange(state: AppState): Promise<void> {
-  try {
-    const note = await state.notes.read('taches.md')
-    state.index.update(note.path, note.content, { mtimeMs: note.mtimeMs, size: note.size })
-  } catch {
-    // Le fichier peut ne pas encore exister : la synchronisation suivante s'en charge.
-  }
-  emit('tasks:changed', {})
-}
-
-async function reindexMove(state: AppState, from: string, to: string): Promise<void> {
-  state.index.remove(from)
-  try {
-    const note = await state.notes.read(to)
-    state.index.update(to, note.content, { mtimeMs: note.mtimeMs, size: note.size })
-  } catch {
-    // Dossier déplacé : la surveillance disque rattrapera le contenu.
-  }
-  emit('tasks:changed', {})
 }

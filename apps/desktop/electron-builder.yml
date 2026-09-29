@@ -31,6 +31,11 @@ mac:
     - dmg
     - zip
   icon: resources/icon.png
+  # Pas de signature par défaut : signer réclame un certificat Apple Developer
+  # et fait surgir une demande du trousseau. Elle n'est utile que pour
+  # distribuer l'app à d'autres machines — voir `dist:mac:signed` dans le
+  # README. Pour un usage personnel, une app non signée fonctionne très bien.
+  identity: null
   # L'app vit dans la barre système : pas d'entrée permanente au Dock imposée.
   extendInfo:
     LSUIElement: false

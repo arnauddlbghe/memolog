@@ -1,11 +1,9 @@
 import {
+  ConversationService,
   EditBurstTracker,
-  JournalService,
-  ProjectService,
-  TaskService,
   createMarkdownStorage,
   diffLines,
-  parseLocalDate,
+  isConversationPath,
   type MarkdownStorage,
   type Vault
 } from '@memolog/core'
@@ -34,11 +32,7 @@ const BURST_TICK_MS = 60_000
 export class AppState {
   private vault: Vault
   private storage: MarkdownStorage
-  private services: {
-    tasks: TaskService
-    journal: JournalService
-    projects: ProjectService
-  }
+  private conversationService: ConversationService
 
   readonly index = new IndexService()
   private readonly watcher: VaultWatcher
@@ -52,7 +46,7 @@ export class AppState {
     const settings = getSettings()
     this.vault = openVault(settings.root)
     this.storage = createMarkdownStorage(this.vault)
-    this.services = this.buildServices()
+    this.conversationService = this.buildService()
     this.bursts = new EditBurstTracker(settings.burstWindowMinutes * 60_000)
 
     this.watcher = new VaultWatcher({
@@ -61,35 +55,24 @@ export class AppState {
         this.index.remove(relPath)
         this.knownContent.delete(relPath)
         emit('note:removed', { path: relPath })
-        emit('tasks:changed', {})
+        emit('conversations:changed', {})
       },
-      treeChanged: (dir) => emit('tree:changed', { dir })
+      treeChanged: () => emit('conversations:changed', {})
     })
 
     this.index.setStatusListener((status) => emit('index:status', status))
   }
 
-  private buildServices(): AppState['services'] {
-    return {
-      tasks: new TaskService({ tasks: this.storage.tasks, activity: this.storage.activity }),
-      journal: new JournalService({
-        journal: this.storage.journal,
-        activity: this.storage.activity
-      }),
-      projects: new ProjectService({ index: this.storage.index, notes: this.storage.notes })
-    }
+  private buildService(): ConversationService {
+    return new ConversationService({
+      conversations: this.storage.conversations,
+      activity: this.storage.activity,
+      index: this.storage.index
+    })
   }
 
-  get tasks(): TaskService {
-    return this.services.tasks
-  }
-
-  get journal(): JournalService {
-    return this.services.journal
-  }
-
-  get projects(): ProjectService {
-    return this.services.projects
+  get conversations(): ConversationService {
+    return this.conversationService
   }
 
   get notes(): MarkdownStorage['notes'] {
@@ -104,25 +87,16 @@ export class AppState {
     return this.vault
   }
 
-  /** Ouvre un dossier : création si besoin, index, surveillance, archivage. */
+  /** Ouvre un dossier : création si besoin, index, surveillance. */
   async attachRoot(root: string): Promise<void> {
     await ensureVaultRoot(root)
     this.vault = openVault(root)
     this.storage = createMarkdownStorage(this.vault)
-    this.services = this.buildServices()
+    this.conversationService = this.buildService()
     this.knownContent.clear()
 
     this.watcher.watch(root)
     await this.index.attach(this.storage.index, root)
-
-    // Les tâches écrites à la main reçoivent leur identifiant et leurs dates.
-    const completed = await this.services.tasks.ensureMetadata()
-    const settings = getSettings()
-    if (settings.autoArchive) {
-      await this.services.tasks.archiveClosed(settings.archiveAfterDays)
-    }
-    if (completed.length > 0 || settings.autoArchive) await this.index.sync()
-
     this.startBurstTimer()
   }
 
@@ -142,8 +116,7 @@ export class AppState {
 
     const settings = updateSettings({ root: newRoot })
     await this.attachRoot(newRoot)
-    emit('tree:changed', { dir: '' })
-    emit('tasks:changed', {})
+    emit('conversations:changed', {})
     return settings
   }
 
@@ -156,6 +129,16 @@ export class AppState {
     const summary = await this.storage.notes.summarize()
     const target = await isDirectoryEmpty(newRoot)
     return { ...summary, targetExists: target.exists, targetEmpty: target.empty }
+  }
+
+  /** Relit un fichier après une écriture de l'application, et réindexe. */
+  async reindex(relPath: string): Promise<void> {
+    try {
+      const note = await this.storage.notes.read(relPath)
+      this.noteWritten(relPath, note.content, { mtimeMs: note.mtimeMs, size: note.size })
+    } catch {
+      // Le fichier peut avoir disparu : la surveillance disque rattrapera.
+    }
   }
 
   // --- Journal d'activité ---------------------------------------------------
@@ -180,7 +163,7 @@ export class AppState {
    *
    * Si le fichier n'était pas suivi, on se contente de mémoriser son contenu :
    * une modification faite pendant que Memolog était éteint ne produit pas
-   * d'événement (`docs/format.md` §6.3).
+   * d'événement (`docs/format.md` §7.3).
    */
   private async onExternalChange(relPath: string): Promise<void> {
     let content: string
@@ -202,7 +185,7 @@ export class AppState {
     this.index.update(relPath, content, stat)
 
     emit('note:changed', { path: relPath, mtimeMs: stat.mtimeMs })
-    if (relPath === 'taches.md' || relPath.startsWith('taches/')) emit('tasks:changed', {})
+    if (isConversationPath(relPath)) emit('conversations:changed', { path: relPath })
   }
 
   private remember(relPath: string, content: string): void {
@@ -228,7 +211,6 @@ export class AppState {
   private async collectBursts(): Promise<void> {
     for (const burst of this.bursts.collectExpired()) {
       await this.storage.activity.appendEditBurst(burst)
-      emit('activity:changed', { date: burst.lastTouch.toISOString().slice(0, 10) })
     }
   }
 
@@ -237,12 +219,6 @@ export class AppState {
     for (const burst of this.bursts.flushAll()) {
       await this.storage.activity.appendEditBurst(burst).catch(() => undefined)
     }
-  }
-
-  /** Vue Jour, avec la date donnée ou aujourd'hui. */
-  dayView(date?: string): ReturnType<JournalService['day']> {
-    const parsed = date === undefined ? null : parseLocalDate(date)
-    return this.services.journal.day(parsed ?? new Date())
   }
 
   async dispose(): Promise<void> {

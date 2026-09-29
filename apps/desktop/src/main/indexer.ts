@@ -21,7 +21,12 @@ const CACHE_FILE = 'index.cache.json'
 export class IndexService {
   private index: MemoryNoteIndex | null = null
   private root = ''
-  private status: IndexStatus = { ready: false, noteCount: 0, taskCount: 0, lastSyncMs: 0 }
+  private status: IndexStatus = {
+    ready: false,
+    noteCount: 0,
+    conversationCount: 0,
+    lastSyncMs: 0
+  }
   private saveTimer: NodeJS.Timeout | null = null
   private onStatus: (status: IndexStatus) => void = () => undefined
 
@@ -59,7 +64,7 @@ export class IndexService {
     this.setStatus({
       ready: true,
       noteCount: report.noteCount,
-      taskCount: report.taskCount,
+      conversationCount: report.conversationCount,
       lastSyncMs: Date.now() - started
     })
     this.scheduleSave()
@@ -91,7 +96,7 @@ export class IndexService {
     this.setStatus({
       ...this.status,
       noteCount: this.index.noteCount,
-      taskCount: this.index.taskCount
+      conversationCount: this.index.conversationCount
     })
     this.scheduleSave()
   }

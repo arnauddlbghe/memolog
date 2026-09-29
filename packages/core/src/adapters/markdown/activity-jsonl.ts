@@ -16,7 +16,10 @@ import type {
 } from '../../domain/types.js'
 import { joinRel } from '../fs/paths.js'
 import { abs, type Vault } from '../fs/vault.js'
-import { MEMOLOG_DIR } from './state.js'
+
+
+/** Dossier des données produites par l'application, dans le dossier de notes. */
+export const MEMOLOG_DIR = '.memolog'
 
 export const ACTIVITY_DIR: RelPath = joinRel(MEMOLOG_DIR, 'activite')
 

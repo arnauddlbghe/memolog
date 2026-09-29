@@ -6,10 +6,8 @@ import type { MemoryMetrics, ThemeSetting, VaultChangePreview } from '@shared/ty
 import { api, errorMessage } from '../api'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
-import { useVaultStore } from '../stores/vault'
 
 const settings = useSettingsStore()
-const vault = useVaultStore()
 const ui = useUiStore()
 
 const capturing = ref<'shortcut' | 'journalShortcut' | null>(null)
@@ -39,7 +37,6 @@ async function confirmRoot(move: boolean): Promise<void> {
   busy.value = true
   try {
     await settings.setRoot(pending.value.root, move)
-    await vault.reset()
     ui.notify(move ? 'Notes déplacées dans le nouveau dossier.' : 'Nouveau dossier ouvert.')
     pending.value = null
   } catch (error) {
@@ -85,7 +82,9 @@ async function rebuildIndex(): Promise<void> {
   busy.value = true
   const status = await api.search.rebuild()
   busy.value = false
-  ui.notify(`Index reconstruit : ${status.noteCount} note(s), ${status.taskCount} tâche(s).`)
+  ui.notify(
+    `Index reconstruit : ${status.conversationCount} conversation(s), ${status.noteCount} fichier(s).`
+  )
 }
 
 async function refreshMetrics(): Promise<void> {
@@ -101,9 +100,9 @@ async function refreshMetrics(): Promise<void> {
     <section class="block">
       <h2>Dossier de rangement</h2>
       <p class="hint faint">
-        Tout votre contenu est rangé ici&nbsp;: notes, <code>journal/</code>,
-        <code>taches.md</code>, fiches projet. Seuls les réglages et le cache d'index vivent dans le
-        dossier de configuration de l'application.
+        Vos conversations sont dans <code>conversations/</code>, vos notes libres à côté. Seuls
+        les réglages et le cache d'index vivent dans le dossier de configuration de
+        l'application.
       </p>
 
       <div class="row">
@@ -152,21 +151,6 @@ async function refreshMetrics(): Promise<void> {
           {{ capturing === 'shortcut' ? 'Appuyez sur la combinaison…' : settings.settings.shortcut }}
         </button>
       </div>
-      <div class="row">
-        <label for="sc-journal">Note du jour</label>
-        <button
-          id="sc-journal"
-          class="btn shortcut"
-          type="button"
-          @click="capturing = capturing === 'journalShortcut' ? null : 'journalShortcut'"
-        >
-          {{
-            capturing === 'journalShortcut'
-              ? 'Appuyez sur la combinaison…'
-              : settings.settings.journalShortcut || 'Aucun'
-          }}
-        </button>
-      </div>
       <p v-if="shortcutError" class="warn">{{ shortcutError }}</p>
       <p v-else-if="settings.shortcutIssue" class="warn">{{ settings.shortcutIssue.error }}</p>
     </section>
@@ -201,69 +185,22 @@ async function refreshMetrics(): Promise<void> {
       </label>
     </section>
 
-    <!-- Tâches -->
+    <!-- Écriture -->
     <section class="block">
-      <h2>Tâches</h2>
+      <h2>Écriture</h2>
       <div class="row">
-        <label for="dormant">Une tâche «&nbsp;dort&nbsp;» après</label>
-        <input
-          id="dormant"
-          class="number"
-          type="number"
-          min="1"
-          max="365"
-          :value="settings.settings.dormantAfterDays"
-          @change="patch('dormantAfterDays', Number(($event.target as HTMLInputElement).value))"
-        />
-        <span class="faint">jours sans mise à jour</span>
-      </div>
-      <div class="row">
-        <label for="archive">Archiver les tâches fermées après</label>
-        <input
-          id="archive"
-          class="number"
-          type="number"
-          min="1"
-          max="3650"
-          :value="settings.settings.archiveAfterDays"
-          @change="patch('archiveAfterDays', Number(($event.target as HTMLInputElement).value))"
-        />
-        <span class="faint">jours</span>
-      </div>
-      <label class="check">
-        <input
-          type="checkbox"
-          :checked="settings.settings.autoArchive"
-          @change="patch('autoArchive', ($event.target as HTMLInputElement).checked)"
-        />
-        <span>
-          <strong>Archiver automatiquement au démarrage</strong>
-          <span class="hint faint">
-            Les tâches concernées sont déplacées vers <code>taches/archive-AAAA.md</code>&nbsp;;
-            rien n'est supprimé.
-          </span>
-        </span>
-      </label>
-    </section>
-
-    <!-- Journal d'activité -->
-    <section class="block">
-      <h2>Journal d'activité</h2>
-      <div class="row">
-        <label for="burst">Regrouper les éditions d'un même fichier pendant</label>
-        <input
-          id="burst"
-          class="number"
-          type="number"
-          min="1"
-          max="240"
-          :value="settings.settings.burstWindowMinutes"
-          @change="patch('burstWindowMinutes', Number(($event.target as HTMLInputElement).value))"
-        />
-        <span class="faint">minutes</span>
+        <label for="mode">Mode par défaut</label>
+        <select
+          id="mode"
+          :value="settings.settings.editorMode"
+          @change="patch('editorMode', ($event.target as HTMLSelectElement).value)"
+        >
+          <option value="rendu">Rendu visuel</option>
+          <option value="brut">Markdown brut</option>
+        </select>
       </div>
       <p class="hint faint">
-        Les événements sont écrits dans <code>.memolog/activite/</code>, en ajout seulement.
+        Le bouton en haut de chaque conversation bascule de l'un à l'autre à tout moment.
       </p>
     </section>
 

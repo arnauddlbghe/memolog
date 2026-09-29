@@ -1,6 +1,7 @@
 import { app, nativeTheme } from 'electron'
 
 import { AppState } from './app-state.js'
+import { APP_NAME, buildMenu } from './menu.js'
 import { emit } from './events.js'
 import { registerIpc } from './ipc.js'
 import { getSettings, loadSettings, onSettingsChanged } from './settings.js'
@@ -8,6 +9,10 @@ import { registerShortcuts, unregisterAll } from './shortcuts.js'
 import { createTray, destroyTray } from './tray.js'
 import type { Settings } from '../shared/types.js'
 import { createWindow, setQuitting, showWindow, toggleWindow } from './window.js'
+
+// Avant toute création de fenêtre : sinon l'app s'appelle « Electron » dans
+// le menu, le Dock et la fenêtre « À propos » tant qu'elle n'est pas empaquetée.
+app.setName(APP_NAME)
 
 // Une seule instance : le raccourci global n'aurait aucun sens en double.
 if (!app.requestSingleInstanceLock()) {
@@ -37,14 +42,7 @@ function applyLaunchAtLogin(settings: Settings): void {
 
 function applyShortcuts(settings: Settings): void {
   const statuses = registerShortcuts([
-    { accelerator: settings.shortcut, action: () => toggleWindow() },
-    {
-      accelerator: settings.journalShortcut,
-      action: () => {
-        showWindow()
-        emit('navigate', { view: 'journal' })
-      }
-    }
+    { accelerator: settings.shortcut, action: () => toggleWindow() }
   ])
   const failed = statuses.find((status) => !status.registered)
   if (failed !== undefined) emit('shortcut:status', failed)
@@ -61,11 +59,8 @@ app.whenReady().then(async () => {
   registerIpc(state)
 
   createWindow(settings)
+  buildMenu()
   createTray({
-    onOpenJournal: () => {
-      showWindow()
-      emit('navigate', { view: 'journal' })
-    },
     onQuit: () => {
       setQuitting(true)
       app.quit()

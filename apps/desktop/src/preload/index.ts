@@ -40,45 +40,27 @@ const api: MemologApi = {
       ipcRenderer.invoke(CHANNELS.onboardingComplete, { root, launchAtLogin })
   },
 
-  tree: {
-    list: (dir) => ipcRenderer.invoke(CHANNELS.treeList, { dir })
+  conversations: {
+    list: () => ipcRenderer.invoke(CHANNELS.conversationsList),
+    read: (path) => ipcRenderer.invoke(CHANNELS.conversationsRead, { path }),
+    create: (name) => ipcRenderer.invoke(CHANNELS.conversationsCreate, { name }),
+    setContent: (path, content, baseMtimeMs) =>
+      ipcRenderer.invoke(CHANNELS.conversationsSetContent, { path, content, baseMtimeMs }),
+    setState: (path, state) =>
+      ipcRenderer.invoke(CHANNELS.conversationsSetState, { path, state }),
+    rename: (path, name) => ipcRenderer.invoke(CHANNELS.conversationsRename, { path, name }),
+    remove: (path) => ipcRenderer.invoke(CHANNELS.conversationsRemove, { path }),
+    days: () => ipcRenderer.invoke(CHANNELS.conversationsDays)
   },
 
   notes: {
-    read: (path) => ipcRenderer.invoke(CHANNELS.noteRead, { path }),
+    list: (dir) => ipcRenderer.invoke(CHANNELS.notesList, { dir }),
+    read: (path) => ipcRenderer.invoke(CHANNELS.notesRead, { path }),
     write: (path, content, baseMtimeMs) =>
-      ipcRenderer.invoke(CHANNELS.noteWrite, { path, content, baseMtimeMs }),
-    create: (dir, name) => ipcRenderer.invoke(CHANNELS.noteCreate, { dir, name }),
-    createFolder: (dir, name) => ipcRenderer.invoke(CHANNELS.folderCreate, { dir, name }),
-    rename: (path, newName) => ipcRenderer.invoke(CHANNELS.entryRename, { path, newName }),
-    move: (path, newDir) => ipcRenderer.invoke(CHANNELS.entryMove, { path, newDir }),
-    remove: (path) => ipcRenderer.invoke(CHANNELS.entryRemove, { path })
-  },
-
-  journal: {
-    today: () => ipcRenderer.invoke(CHANNELS.journalToday),
-    open: (date) => ipcRenderer.invoke(CHANNELS.journalOpen, { date }),
-    append: (text) => ipcRenderer.invoke(CHANNELS.journalAppend, { text }),
-    day: (date) => ipcRenderer.invoke(CHANNELS.journalDay, { date }),
-    days: () => ipcRenderer.invoke(CHANNELS.journalDays)
-  },
-
-  tasks: {
-    list: (options) => ipcRenderer.invoke(CHANNELS.tasksList, options ?? {}),
-    dormant: (days) => ipcRenderer.invoke(CHANNELS.tasksDormant, { days }),
-    create: (text, project, description) =>
-      ipcRenderer.invoke(CHANNELS.tasksCreate, { text, project, description }),
-    setState: (id, state) => ipcRenderer.invoke(CHANNELS.tasksSetState, { id, state }),
-    cycle: (id) => ipcRenderer.invoke(CHANNELS.tasksCycle, { id }),
-    rename: (id, text) => ipcRenderer.invoke(CHANNELS.tasksRename, { id, text }),
-    describe: (id, description) => ipcRenderer.invoke(CHANNELS.tasksDescribe, { id, description }),
-    resolve: (ids) => ipcRenderer.invoke(CHANNELS.tasksResolve, { ids }),
-    archive: () => ipcRenderer.invoke(CHANNELS.tasksArchive)
-  },
-
-  projects: {
-    list: () => ipcRenderer.invoke(CHANNELS.projectsList),
-    detail: (name) => ipcRenderer.invoke(CHANNELS.projectsDetail, { name })
+      ipcRenderer.invoke(CHANNELS.notesWrite, { path, content, baseMtimeMs }),
+    create: (dir, name) => ipcRenderer.invoke(CHANNELS.notesCreate, { dir, name }),
+    remove: (path) => ipcRenderer.invoke(CHANNELS.notesRemove, { path }),
+    all: () => ipcRenderer.invoke(CHANNELS.notesAll)
   },
 
   search: {
