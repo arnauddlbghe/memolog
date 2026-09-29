@@ -15,6 +15,7 @@
     "src/renderer/src/**/*.ts",
     "src/renderer/src/**/*.vue",
     "src/renderer/src/env.d.ts",
-    "src/shared/**/*.ts"
+    "src/shared/**/*.ts",
+    "test/**/*.ts"
   ]
 }

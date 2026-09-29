@@ -29,7 +29,6 @@ export function defaultSettings(): Settings {
     root: defaultRoot(),
     shortcut: 'CommandOrControl+Shift+Space',
     theme: 'system',
-    editorMode: 'rendu',
     // Aucun réglage système n'est appliqué sans une action explicite.
     launchAtLogin: false,
     startHidden: false,
@@ -57,8 +56,9 @@ function coerce(raw: unknown): Settings {
     version: SETTINGS_VERSION,
     root: typeof input.root === 'string' && input.root.trim() !== '' ? input.root : base.root,
     shortcut: typeof input.shortcut === 'string' ? input.shortcut : base.shortcut,
-    editorMode: input.editorMode === 'brut' ? 'brut' : base.editorMode,
-    theme: themes.includes(input.theme as ThemeSetting) ? (input.theme as ThemeSetting) : base.theme,
+    theme: themes.includes(input.theme as ThemeSetting)
+      ? (input.theme as ThemeSetting)
+      : base.theme,
     launchAtLogin: input.launchAtLogin === true,
     startHidden: input.startHidden === true,
     onboardingDone: input.onboardingDone === true,

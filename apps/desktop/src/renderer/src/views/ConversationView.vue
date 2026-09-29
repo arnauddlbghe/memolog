@@ -1,38 +1,34 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-import type { ConversationState, EditorMode } from '@shared/types'
+import type { ConversationState } from '@shared/types'
 
 import { api, errorMessage } from '../api'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 import StateBubble from '../components/StateBubble.vue'
 import { useConversationsStore } from '../stores/conversations'
-import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 
-const AUTOSAVE_DELAY = 600
-
 const conversations = useConversationsStore()
-const settings = useSettingsStore()
 const ui = useUiStore()
 
 const draft = ref('')
 const saveState = ref<'saved' | 'dirty' | 'saving' | 'error'>('saved')
 const baseMtimeMs = ref(0)
-const renaming = ref(false)
-const nameDraft = ref('')
 const historyOpen = ref(false)
-let timer: ReturnType<typeof setTimeout> | null = null
+
+/** Le titre se saisit ici, directement : c'est aussi le nom du fichier. */
+const title = ref('')
+const titleField = ref<HTMLInputElement | null>(null)
 
 const conversation = computed(() => conversations.current)
-const mode = computed<EditorMode>(() => settings.settings?.editorMode ?? 'rendu')
 
 const saveLabel = computed(() => {
   switch (saveState.value) {
     case 'saving':
       return 'Enregistrement…'
     case 'dirty':
-      return 'Modifié'
+      return 'Non sauvegardé'
     case 'error':
       return 'Échec de l’enregistrement'
     default:
@@ -43,14 +39,31 @@ const saveLabel = computed(() => {
 // Changer de conversation remplace le brouillon, sans emporter l'ancien.
 watch(
   () => conversation.value?.path,
-  () => {
+  async () => {
     flush()
     draft.value = conversation.value?.content ?? ''
+    title.value = conversation.value?.name ?? ''
     baseMtimeMs.value = conversation.value?.mtimeMs ?? 0
     saveState.value = 'saved'
     historyOpen.value = false
+
+    // Conversation tout juste créée : le curseur attend dans le titre.
+    if (ui.titleAwaitsName) {
+      ui.titleAwaitsName = false
+      await nextTick()
+      titleField.value?.focus()
+      titleField.value?.select()
+    }
   },
   { immediate: true }
+)
+
+// Un renommage venu d'ailleurs (ou du disque) se reflète dans le champ.
+watch(
+  () => conversation.value?.name,
+  (next) => {
+    if (next !== undefined && document.activeElement !== titleField.value) title.value = next
+  }
 )
 
 // Une modification venue du disque se propage si l'on n'a rien en cours.
@@ -66,17 +79,11 @@ watch(
 function onInput(value: string): void {
   draft.value = value
   saveState.value = 'dirty'
-  if (timer !== null) clearTimeout(timer)
-  timer = setTimeout(() => void save(), AUTOSAVE_DELAY)
 }
 
 async function save(): Promise<void> {
   const path = conversation.value?.path
-  if (path === undefined || saveState.value === 'saved') return
-  if (timer !== null) {
-    clearTimeout(timer)
-    timer = null
-  }
+  if (path === undefined || saveState.value === 'saved' || saveState.value === 'saving') return
 
   saveState.value = 'saving'
   try {
@@ -98,9 +105,47 @@ function flush(): void {
   if (saveState.value === 'dirty') void save()
 }
 
+/**
+ * Plus d'enregistrement automatique pendant la frappe : on écrit quand on
+ * quitte la fenêtre, quand on change de conversation, et sur ⌘S.
+ *
+ * Trois filets plutôt qu'un, parce que « quitter la fenêtre » prend plusieurs
+ * formes : passer à une autre application (`blur`), masquer la fenêtre par le
+ * raccourci global ou la barre système (`visibilitychange`), et fermer pour de
+ * bon (`beforeunload`).
+ */
+function onSaveShortcut(event: KeyboardEvent): void {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault()
+    flush()
+  }
+}
+
+function onHidden(): void {
+  if (document.visibilityState === 'hidden') flush()
+}
+
+onMounted(() => {
+  window.addEventListener('blur', flush)
+  window.addEventListener('beforeunload', flush)
+  window.addEventListener('keydown', onSaveShortcut)
+  document.addEventListener('visibilitychange', onHidden)
+})
+
+onBeforeUnmount(() => {
+  flush()
+  window.removeEventListener('blur', flush)
+  window.removeEventListener('beforeunload', flush)
+  window.removeEventListener('keydown', onSaveShortcut)
+  document.removeEventListener('visibilitychange', onHidden)
+})
+
 async function setState(state: ConversationState): Promise<void> {
   const path = conversation.value?.path
   if (path === undefined) return
+  // Sans autosave, le corps peut être en retard sur l'écran : on l'écrit
+  // d'abord, sinon changer d'état réécrirait le fichier depuis le disque.
+  await save()
   try {
     await conversations.setState(path, state)
   } catch (error) {
@@ -108,19 +153,22 @@ async function setState(state: ConversationState): Promise<void> {
   }
 }
 
-function startRename(): void {
-  nameDraft.value = conversation.value?.name ?? ''
-  renaming.value = true
-}
-
-async function commitRename(): Promise<void> {
-  renaming.value = false
+/** Le renommage suit le champ de titre : à la validation ou à la sortie. */
+async function commitTitle(): Promise<void> {
   const path = conversation.value?.path
-  const next = nameDraft.value.trim()
-  if (path === undefined || next === '' || next === conversation.value?.name) return
+  const next = title.value.trim()
+  if (path === undefined) return
+  if (next === '' || next === conversation.value?.name) {
+    title.value = conversation.value?.name ?? ''
+    return
+  }
+  // Renommer déplace le fichier : le corps en attente doit partir avant,
+  // sinon il serait écrit à l'ancien chemin, avec une base périmée.
+  await save()
   try {
     await conversations.rename(path, next)
   } catch (error) {
+    title.value = conversation.value?.name ?? ''
     ui.notify(errorMessage(error), 'error')
   }
 }
@@ -130,10 +178,6 @@ async function remove(): Promise<void> {
   if (path === undefined) return
   if (!window.confirm(`Envoyer « ${conversation.value?.name} » à la corbeille du système ?`)) return
   await conversations.remove(path)
-}
-
-function toggleMode(): void {
-  void settings.update({ editorMode: mode.value === 'rendu' ? 'brut' : 'rendu' })
 }
 
 const STATE_LABELS: Record<ConversationState, string> = {
@@ -147,33 +191,48 @@ const STATE_LABELS: Record<ConversationState, string> = {
 <template>
   <section v-if="conversation" class="conv">
     <header class="conv__head">
-      <div class="conv__title">
-        <input
-          v-if="renaming"
-          v-model="nameDraft"
-          class="conv__rename"
-          type="text"
-          aria-label="Nom de la conversation"
-          @blur="commitRename"
-          @keydown.enter.prevent="commitRename"
-          @keydown.esc.prevent="renaming = false"
-        />
-        <h1 v-else title="Cliquer pour renommer" @click="startRename">{{ conversation.name }}</h1>
+      <button
+        v-if="!ui.sidebarOpen"
+        class="reveal"
+        type="button"
+        title="Afficher la liste (⌘\)"
+        aria-label="Afficher la liste"
+        @click="ui.toggleSidebar()"
+      >
+        »
+      </button>
 
-        <StateBubble :state="conversation.state" @select="setState" />
-      </div>
+      <input
+        ref="titleField"
+        v-model="title"
+        class="conv__title"
+        type="text"
+        placeholder="Titre de la conversation"
+        aria-label="Titre de la conversation"
+        @blur="commitTitle"
+        @keydown.enter.prevent="commitTitle"
+        @keydown.esc.prevent="title = conversation.name"
+      />
 
-      <div class="conv__tools">
-        <button
-          class="btn btn--ghost"
-          type="button"
-          :title="mode === 'rendu' ? 'Voir le Markdown brut' : 'Revenir au rendu visuel'"
-          @click="toggleMode"
-        >
-          {{ mode === 'rendu' ? 'Markdown' : 'Rendu' }}
-        </button>
-        <span class="faint state">{{ saveLabel }}</span>
-      </div>
+      <button
+        class="state"
+        :class="{
+          'state--dirty': saveState === 'dirty',
+          'state--error': saveState === 'error',
+          faint: saveState === 'saved'
+        }"
+        type="button"
+        :disabled="saveState !== 'dirty' && saveState !== 'error'"
+        :title="
+          saveState === 'dirty' || saveState === 'error'
+            ? 'Enregistrer maintenant (⌘S)'
+            : 'Enregistré sur le disque'
+        "
+        @click="flush"
+      >
+        {{ saveLabel }}
+      </button>
+      <StateBubble :state="conversation.state" @select="setState" />
     </header>
 
     <div class="conv__meta">
@@ -193,12 +252,7 @@ const STATE_LABELS: Record<ConversationState, string> = {
       </ol>
     </div>
 
-    <MarkdownEditor
-      :model-value="draft"
-      :mode="mode"
-      class="conv__editor"
-      @update:model-value="onInput"
-    />
+    <MarkdownEditor :model-value="draft" class="conv__editor" @update:model-value="onInput" />
 
     <footer class="conv__foot">
       <span class="mono faint">{{ conversation.path }}</span>
@@ -206,9 +260,19 @@ const STATE_LABELS: Record<ConversationState, string> = {
     </footer>
   </section>
 
-  <p v-else class="placeholder faint">
-    Choisissez une conversation à gauche, ou créez-en une.
-  </p>
+  <div v-else class="placeholder">
+    <button
+      v-if="!ui.sidebarOpen"
+      class="reveal reveal--alone"
+      type="button"
+      title="Afficher la liste (⌘\)"
+      aria-label="Afficher la liste"
+      @click="ui.toggleSidebar()"
+    >
+      »
+    </button>
+    <p class="faint">Choisissez une conversation à gauche, ou créez-en une.</p>
+  </div>
 </template>
 
 <style scoped>
@@ -222,52 +286,85 @@ const STATE_LABELS: Record<ConversationState, string> = {
 .conv__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 20px 8px;
-}
-
-.conv__title {
-  display: flex;
-  align-items: center;
   gap: 10px;
+  padding: 10px 20px 6px;
+}
+
+/* Le titre se fond dans la page : c'est un titre, pas un formulaire. */
+.conv__title {
+  flex: 1;
   min-width: 0;
-}
-
-h1 {
-  margin: 0;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
   font-size: 17px;
-  cursor: text;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 600;
 }
 
-h1:hover {
-  color: var(--accent);
+.conv__title:hover {
+  border-color: var(--border);
 }
 
-.conv__rename {
-  font-size: 16px;
-  min-width: 240px;
+.conv__title:focus {
+  border-color: var(--border-strong);
+  background: var(--bg-raised);
+  outline: none;
 }
 
-.conv__tools {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.conv__title::placeholder {
+  color: var(--text-faint);
+  font-weight: 400;
 }
 
-.conv__tools .btn {
-  font-size: 12px;
+.reveal {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.reveal:hover {
+  background: var(--bg-sunken);
+  color: var(--text);
+}
+
+.reveal--alone {
+  position: absolute;
+  top: 34px;
+  left: 10px;
 }
 
 .state {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
   font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* Du texte en attente d'écriture doit se voir, pas se deviner. */
+.state--dirty {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  color: var(--text);
+}
+
+.state--error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.state:disabled {
+  cursor: default;
 }
 
 .conv__meta {
-  padding: 0 20px 8px;
+  padding: 0 20px 8px 26px;
 }
 
 .meta__toggle {

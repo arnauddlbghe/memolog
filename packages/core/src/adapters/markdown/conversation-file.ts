@@ -100,6 +100,8 @@ export interface ParseOptions {
   /** Date de repli quand le fichier ne dit pas quand il a été créé. */
   fallbackCreated?: string
   mtimeMs?: number
+  /** Création du fichier ; à défaut, on retombe sur `mtimeMs`. */
+  birthtimeMs?: number
 }
 
 /**
@@ -128,6 +130,7 @@ export function parseConversation(
     path,
     name: conversationName(path),
     created,
+    createdMs: options.birthtimeMs ?? options.mtimeMs ?? 0,
     state,
     history: header.history,
     content: body.replace(/^\n+/, ''),
@@ -185,6 +188,7 @@ export function newConversation(
     path,
     name: conversationName(path),
     created,
+    createdMs: at.getTime(),
     state,
     history: [{ date: created, state }],
     content: '',
@@ -198,6 +202,7 @@ export function summarize(conversation: Conversation): ConversationSummary {
     path: conversation.path,
     name: conversation.name,
     created: conversation.created,
+    createdMs: conversation.createdMs,
     state: conversation.state,
     lastChange: conversation.history[conversation.history.length - 1]?.date ?? null,
     mtimeMs: conversation.mtimeMs

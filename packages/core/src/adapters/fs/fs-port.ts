@@ -8,6 +8,14 @@
  */
 export interface FileStat {
   mtimeMs: number
+  /**
+   * Date de création du fichier.
+   *
+   * Elle ne fait pas partie du format — le frontmatter ne porte qu'un jour —
+   * mais elle donne un ordre stable entre deux conversations créées le même
+   * jour. Un système de fichiers qui ne la connaît pas renvoie `mtimeMs`.
+   */
+  birthtimeMs: number
   size: number
   kind: 'file' | 'dir'
 }

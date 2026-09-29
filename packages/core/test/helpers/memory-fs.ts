@@ -20,6 +20,8 @@ interface Entry {
   kind: 'file' | 'dir'
   content: string
   mtimeMs: number
+  /** Fixée à la première écriture : une réécriture ne la change pas. */
+  birthtimeMs: number
 }
 
 export function createMemoryFileSystem(initial: Record<string, string> = {}): MemoryFileSystem {
@@ -33,7 +35,7 @@ export function createMemoryFileSystem(initial: Record<string, string> = {}): Me
     let current = path.dirname(normalize(absPath))
     while (current !== path.dirname(current)) {
       if (!entries.has(current)) {
-        entries.set(current, { kind: 'dir', content: '', mtimeMs: clock })
+        entries.set(current, { kind: 'dir', content: '', mtimeMs: clock, birthtimeMs: clock })
       }
       current = path.dirname(current)
     }
@@ -42,7 +44,13 @@ export function createMemoryFileSystem(initial: Record<string, string> = {}): Me
   const setFile = (absPath: string, content: string): void => {
     ensureParents(absPath)
     clock += 1
-    entries.set(normalize(absPath), { kind: 'file', content, mtimeMs: clock })
+    const key = normalize(absPath)
+    entries.set(key, {
+      kind: 'file',
+      content,
+      mtimeMs: clock,
+      birthtimeMs: entries.get(key)?.birthtimeMs ?? clock
+    })
   }
 
   for (const [absPath, content] of Object.entries(initial)) {
@@ -82,6 +90,7 @@ export function createMemoryFileSystem(initial: Record<string, string> = {}): Me
       return {
         kind: entry.kind,
         mtimeMs: entry.mtimeMs,
+        birthtimeMs: entry.birthtimeMs,
         size: entry.kind === 'file' ? Buffer.byteLength(entry.content, 'utf8') : 0
       }
     },
@@ -103,7 +112,12 @@ export function createMemoryFileSystem(initial: Record<string, string> = {}): Me
     async mkdir(absPath) {
       ensureParents(path.join(normalize(absPath), 'x'))
       if (!entries.has(normalize(absPath))) {
-        entries.set(normalize(absPath), { kind: 'dir', content: '', mtimeMs: clock })
+        entries.set(normalize(absPath), {
+          kind: 'dir',
+          content: '',
+          mtimeMs: clock,
+          birthtimeMs: clock
+        })
       }
     },
 

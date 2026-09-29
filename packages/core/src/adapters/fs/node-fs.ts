@@ -15,9 +15,7 @@ export interface NodeFileSystemOptions {
 
 function isErrnoException(error: unknown, code: string): boolean {
   return (
-    typeof error === 'object' &&
-    error !== null &&
-    (error as NodeJS.ErrnoException).code === code
+    typeof error === 'object' && error !== null && (error as NodeJS.ErrnoException).code === code
   )
 }
 
@@ -45,7 +43,10 @@ export function createNodeFileSystem(options: NodeFileSystemOptions = {}): FileS
      */
     async writeFile(absPath, content) {
       const dir = path.dirname(absPath)
-      const temp = path.join(dir, `.${path.basename(absPath)}.${randomBytes(6).toString('hex')}.tmp`)
+      const temp = path.join(
+        dir,
+        `.${path.basename(absPath)}.${randomBytes(6).toString('hex')}.tmp`
+      )
       await fs.mkdir(dir, { recursive: true })
       try {
         await fs.writeFile(temp, content, 'utf8')
@@ -61,6 +62,9 @@ export function createNodeFileSystem(options: NodeFileSystemOptions = {}): FileS
         const stat = await fs.stat(absPath)
         return {
           mtimeMs: stat.mtimeMs,
+          // Certains systèmes de fichiers ne datent pas la création et
+          // renvoient 0 : la date de modification est alors le meilleur repli.
+          birthtimeMs: stat.birthtimeMs > 0 ? stat.birthtimeMs : stat.mtimeMs,
           size: stat.size,
           kind: stat.isDirectory() ? 'dir' : 'file'
         }

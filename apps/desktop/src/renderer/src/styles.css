@@ -17,7 +17,6 @@
   --danger: #a33a2a;
   --warning-bg: #fdf1dc;
   --warning-border: #e6c690;
-  --active-line: rgb(185 112 42 / 7%);
   --selection: rgb(185 112 42 / 20%);
   --radius: 8px;
   --radius-sm: 5px;
@@ -40,7 +39,6 @@
   --danger: #e08070;
   --warning-bg: #3a2f1c;
   --warning-border: #6b5424;
-  --active-line: rgb(224 161 94 / 9%);
   --selection: rgb(224 161 94 / 26%);
   color-scheme: dark;
 }
@@ -80,7 +78,11 @@ input:focus-visible,
   outline-offset: 1px;
 }
 
-input,
+/*
+ * Les cases à cocher sont exclues : ce remplissage les déformait en
+ * rectangles, jusque dans l'éditeur où elles sont dessinées à la main.
+ */
+input:not([type='checkbox']):not([type='radio']),
 textarea,
 select {
   font: inherit;
@@ -140,63 +142,4 @@ select {
 .mono {
   font-family: var(--mono);
   font-size: 12px;
-}
-
-/* --- Éditeur CodeMirror --------------------------------------------------- */
-.cm-editor {
-  height: 100%;
-  background: transparent;
-}
-
-.cm-editor.cm-focused {
-  outline: none;
-}
-
-.cm-scroller {
-  font-family: var(--mono);
-  font-size: 14px;
-  line-height: 1.65;
-  padding: 16px 0 40vh;
-}
-
-.cm-content {
-  max-width: 820px;
-  margin: 0 auto;
-  padding: 0 28px;
-}
-
-.cm-gutters {
-  display: none;
-}
-
-.cm-activeLine {
-  background: var(--active-line);
-}
-
-.memolog-checkbox {
-  appearance: none;
-  width: 13px;
-  height: 13px;
-  margin: 0 2px -1px 0;
-  border: 1.5px solid var(--border-strong);
-  border-radius: 3px;
-  background: var(--bg-raised);
-  cursor: pointer;
-  vertical-align: baseline;
-}
-
-.memolog-checkbox:checked {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.memolog-checkbox:checked::after {
-  content: '';
-  display: block;
-  width: 3px;
-  height: 6px;
-  margin: 0 auto;
-  border: solid #fff;
-  border-width: 0 1.5px 1.5px 0;
-  transform: translateY(0.5px) rotate(45deg);
 }

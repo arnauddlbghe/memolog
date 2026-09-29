@@ -100,9 +100,8 @@ async function refreshMetrics(): Promise<void> {
     <section class="block">
       <h2>Dossier de rangement</h2>
       <p class="hint faint">
-        Vos conversations sont dans <code>conversations/</code>, vos notes libres à côté. Seuls
-        les réglages et le cache d'index vivent dans le dossier de configuration de
-        l'application.
+        Vos conversations sont dans <code>conversations/</code>, vos notes libres à côté. Seuls les
+        réglages et le cache d'index vivent dans le dossier de configuration de l'application.
       </p>
 
       <div class="row">
@@ -124,7 +123,12 @@ async function refreshMetrics(): Promise<void> {
           </span>
         </p>
         <div class="confirm__actions">
-          <button class="btn btn--primary" type="button" :disabled="busy" @click="confirmRoot(true)">
+          <button
+            class="btn btn--primary"
+            type="button"
+            :disabled="busy"
+            @click="confirmRoot(true)"
+          >
             Déplacer mes notes
           </button>
           <button class="btn" type="button" :disabled="busy" @click="confirmRoot(false)">
@@ -148,7 +152,9 @@ async function refreshMetrics(): Promise<void> {
           type="button"
           @click="capturing = capturing === 'shortcut' ? null : 'shortcut'"
         >
-          {{ capturing === 'shortcut' ? 'Appuyez sur la combinaison…' : settings.settings.shortcut }}
+          {{
+            capturing === 'shortcut' ? 'Appuyez sur la combinaison…' : settings.settings.shortcut
+          }}
         </button>
       </div>
       <p v-if="shortcutError" class="warn">{{ shortcutError }}</p>
@@ -180,28 +186,11 @@ async function refreshMetrics(): Promise<void> {
         />
         <span>
           <strong>Démarrer masqué dans la barre système</strong>
-          <span class="hint faint">La fenêtre n'apparaît qu'au raccourci ou au clic sur l'icône.</span>
+          <span class="hint faint"
+            >La fenêtre n'apparaît qu'au raccourci ou au clic sur l'icône.</span
+          >
         </span>
       </label>
-    </section>
-
-    <!-- Écriture -->
-    <section class="block">
-      <h2>Écriture</h2>
-      <div class="row">
-        <label for="mode">Mode par défaut</label>
-        <select
-          id="mode"
-          :value="settings.settings.editorMode"
-          @change="patch('editorMode', ($event.target as HTMLSelectElement).value)"
-        >
-          <option value="rendu">Rendu visuel</option>
-          <option value="brut">Markdown brut</option>
-        </select>
-      </div>
-      <p class="hint faint">
-        Le bouton en haut de chaque conversation bascule de l'un à l'autre à tout moment.
-      </p>
     </section>
 
     <!-- Apparence -->
@@ -227,8 +216,9 @@ async function refreshMetrics(): Promise<void> {
       <p class="hint faint">
         Memolog est une application locale&nbsp;: pas de compte, pas de serveur, aucune donnée
         envoyée sur Internet. Vos notes sont des fichiers Markdown que n'importe quel éditeur peut
-        lire. Elle vit en arrière-plan&nbsp;: <code>{{ settings.settings.shortcut }}</code> l'affiche
-        et la masque, et fermer la fenêtre ne quitte pas l'application.
+        lire. Elle vit en arrière-plan&nbsp;:
+        <code>{{ settings.settings.shortcut }}</code> l'affiche et la masque, et fermer la fenêtre
+        ne quitte pas l'application.
       </p>
       <dl class="about">
         <dt>Version</dt>

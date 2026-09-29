@@ -17,6 +17,8 @@ export interface NoteContent {
   title: string
   content: string
   mtimeMs: number
+  /** Création du fichier sur le disque. Voir `FileStat.birthtimeMs`. */
+  birthtimeMs: number
   size: number
 }
 
@@ -54,6 +56,12 @@ export interface Conversation {
   name: string
   /** Date locale `AAAA-MM-JJ`. */
   created: string
+  /**
+   * Instant de création, pris sur le fichier. Le format ne porte qu'un jour :
+   * ceci ne sert qu'à ordonner deux conversations nées le même jour, de façon
+   * stable — contrairement à `mtimeMs`, qui bouge à chaque frappe.
+   */
+  createdMs: number
   state: ConversationState
   /** De la plus ancienne à la plus récente ; se termine par l'état courant. */
   history: StateChange[]
@@ -69,6 +77,8 @@ export interface ConversationSummary {
   path: RelPath
   name: string
   created: string
+  /** Voir `Conversation.createdMs` : l'ordre stable à l'intérieur d'un jour. */
+  createdMs: number
   state: ConversationState
   /** Date du dernier changement d'état, ou `null` s'il n'y en a jamais eu. */
   lastChange: string | null
@@ -116,10 +126,7 @@ export interface FileEditedEvent extends ActivityBase {
   lignes: number
 }
 
-export type ActivityEvent =
-  | ConversationCreatedEvent
-  | ConversationStateEvent
-  | FileEditedEvent
+export type ActivityEvent = ConversationCreatedEvent | ConversationStateEvent | FileEditedEvent
 
 /**
  * Un événement sans ses champs communs : `ts` et `auteur` sont ajoutés à

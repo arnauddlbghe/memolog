@@ -56,6 +56,7 @@ export class MarkdownConversationRepository implements ConversationRepository {
     const note = await readNote(this.vault, path)
     return parseConversation(note.path, note.content, {
       mtimeMs: note.mtimeMs,
+      birthtimeMs: note.birthtimeMs,
       fallbackCreated: formatLocalDate(new Date(note.mtimeMs))
     })
   }

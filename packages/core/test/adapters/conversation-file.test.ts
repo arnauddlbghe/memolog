@@ -105,7 +105,10 @@ describe('écriture', () => {
   })
 
   it('remet les clés inconnues dans le fichier', () => {
-    const extra = parseConversation(PATH, '---\ncréée: 2026-01-01\nétat: a-faire\ntags: infra\n---\n\nx\n')
+    const extra = parseConversation(
+      PATH,
+      '---\ncréée: 2026-01-01\nétat: a-faire\ntags: infra\n---\n\nx\n'
+    )
     expect(renderConversation(extra)).toContain('tags: infra')
   })
 })
@@ -147,13 +150,27 @@ describe('nouvelle conversation', () => {
 
 describe('résumé', () => {
   it('donne de quoi lister sans lire le corps', () => {
-    expect(summarize(parseConversation(PATH, FILE, { mtimeMs: 42 }))).toEqual({
+    expect(summarize(parseConversation(PATH, FILE, { mtimeMs: 42, birthtimeMs: 7 }))).toEqual({
       path: PATH,
       name: 'Migration serveur',
       created: '2026-09-14',
+      createdMs: 7,
       state: 'en-cours',
       lastChange: '2026-09-29',
       mtimeMs: 42
     })
+  })
+
+  it('retombe sur la date de modification quand le disque ignore la création', () => {
+    const summary = summarize(parseConversation(PATH, FILE, { mtimeMs: 42 }))
+    expect(summary.createdMs).toBe(42)
+  })
+
+  it('garde un ordre stable quand le fichier est réécrit', () => {
+    // C'est tout l'intérêt : `mtimeMs` bouge à chaque frappe, pas `createdMs`.
+    const avant = summarize(parseConversation(PATH, FILE, { mtimeMs: 42, birthtimeMs: 7 }))
+    const apres = summarize(parseConversation(PATH, FILE, { mtimeMs: 900, birthtimeMs: 7 }))
+    expect(apres.createdMs).toBe(avant.createdMs)
+    expect(apres.mtimeMs).not.toBe(avant.mtimeMs)
   })
 })

@@ -65,13 +65,16 @@ export const useConversationsStore = defineStore('conversations', () => {
       .map(([date, conversations]) => ({
         date,
         label: dayLabel(date),
-        conversations: [...conversations].sort((a, b) => b.mtimeMs - a.mtimeMs)
+        // Par création, jamais par modification : trier sur `mtimeMs` faisait
+        // remonter une conversation à chaque frappe, et la liste bougeait
+        // sous le curseur. Le nom départage deux créations simultanées.
+        conversations: [...conversations].sort(
+          (a, b) => b.createdMs - a.createdMs || a.name.localeCompare(b.name, 'fr')
+        )
       }))
   })
 
-  const openCount = computed(
-    () => list.value.filter((item) => item.state !== 'termine').length
-  )
+  const openCount = computed(() => list.value.filter((item) => item.state !== 'termine').length)
 
   async function load(): Promise<void> {
     loading.value = true

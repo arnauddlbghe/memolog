@@ -53,7 +53,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
       :title="`${current.label} — cliquer pour changer`"
       @click="open = !open"
     >
-      <span class="badge__dot" :class="`dot--${state}`" aria-hidden="true" />
+      <span class="dot badge__dot" :class="`dot--${state}`" aria-hidden="true" />
       {{ current.label }}
     </button>
 
@@ -128,11 +128,16 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
   height: 8px;
 }
 
+/*
+ * Ancré à droite : le badge vit en haut à droite de la conversation, contre le
+ * bord. Ouvert vers la droite, le menu sortait de la fenêtre et `.main`, qui
+ * masque son débordement, le coupait net.
+ */
 .menu {
   position: absolute;
   z-index: 25;
   top: calc(100% + 4px);
-  left: 0;
+  right: 0;
   margin: 0;
   padding: 4px;
   min-width: 170px;

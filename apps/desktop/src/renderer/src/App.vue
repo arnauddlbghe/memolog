@@ -11,6 +11,9 @@ import OnboardingView from './views/OnboardingView.vue'
 
 const SettingsView = defineAsyncComponent(() => import('./views/SettingsView.vue'))
 
+/** Nom donné à une conversation tant que l'on n'a rien saisi. */
+const UNTITLED = 'Sans titre'
+
 const settings = useSettingsStore()
 const ui = useUiStore()
 const conversations = useConversationsStore()
@@ -22,6 +25,7 @@ let started = false
 onMounted(async () => {
   await settings.load()
   ready.value = true
+  window.addEventListener('keydown', onKeydown)
   if (settings.onboardingDone) await afterReady()
 })
 
@@ -50,13 +54,28 @@ async function afterReady(): Promise<void> {
   )
 }
 
+/** ⌘\ (Ctrl+\) plie ou déplie la liste de gauche. */
+function onKeydown(event: KeyboardEvent): void {
+  if ((event.metaKey || event.ctrlKey) && event.key === '\\') {
+    event.preventDefault()
+    ui.toggleSidebar()
+  }
+}
+
 onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
   for (const off of unsubscribers) off()
 })
 
-async function create(name: string): Promise<void> {
-  const path = await conversations.create(name)
+/**
+ * Créer une conversation ne demande plus de nom : elle s'ouvre aussitôt, et
+ * c'est dans son titre que l'on écrit.
+ */
+async function create(): Promise<void> {
+  ui.titleAwaitsName = true
+  const path = await conversations.create(UNTITLED)
   if (path === null) {
+    ui.titleAwaitsName = false
     ui.notify(conversations.error ?? 'La conversation n’a pas pu être créée.', 'error')
     return
   }
@@ -69,8 +88,8 @@ async function create(name: string): Promise<void> {
 
   <OnboardingView v-else-if="!settings.onboardingDone" />
 
-  <div v-else class="shell">
-    <Sidebar @create="create" />
+  <div v-else class="shell" :class="{ 'shell--full': !ui.sidebarOpen }">
+    <Sidebar v-if="ui.sidebarOpen" @create="create" />
 
     <main class="main">
       <SettingsView v-if="ui.view === 'settings'" />
@@ -103,6 +122,11 @@ async function create(name: string): Promise<void> {
   overflow: hidden;
   /* Place pour les boutons de fenêtre de macOS, au-dessus de la liste. */
   padding-top: 28px;
+}
+
+/* Liste repliée : l'écriture prend toute la largeur. */
+.shell--full {
+  grid-template-columns: 1fr;
 }
 
 .shell::before {
@@ -143,6 +167,10 @@ async function create(name: string): Promise<void> {
 @media (max-width: 860px) {
   .shell {
     grid-template-columns: 196px 1fr;
+  }
+
+  .shell--full {
+    grid-template-columns: 1fr;
   }
 }
 </style>

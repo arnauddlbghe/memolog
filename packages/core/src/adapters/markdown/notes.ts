@@ -42,6 +42,7 @@ export async function readNote(vault: Vault, relPath: string): Promise<NoteConte
     title: titleFromPath(rel),
     content: raw.replace(/^﻿/, ''),
     mtimeMs: stat.mtimeMs,
+    birthtimeMs: stat.birthtimeMs,
     size: stat.size
   }
 }

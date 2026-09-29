@@ -22,9 +22,6 @@ export type {
 
 export type ThemeSetting = 'system' | 'light' | 'dark'
 
-/** Mode d'écriture : rendu visuel, ou Markdown brut. */
-export type EditorMode = 'rendu' | 'brut'
-
 /**
  * Réglages de l'application. Stockés dans le dossier de config de l'OS,
  * **jamais** dans le dossier de notes : ils contiennent justement le chemin
@@ -37,8 +34,6 @@ export interface Settings {
   /** Raccourci global d'affichage/masquage, syntaxe Electron. */
   shortcut: string
   theme: ThemeSetting
-  /** Mode d'écriture par défaut à l'ouverture d'une conversation. */
-  editorMode: EditorMode
   /** Lancer Memolog à l'ouverture de session. Désactivé par défaut. */
   launchAtLogin: boolean
   /** Au lancement, rester dans la barre système sans ouvrir la fenêtre. */
@@ -102,7 +97,7 @@ export interface MemologEvents {
   'index:status': IndexStatus
   'settings:changed': Settings
   'shortcut:status': ShortcutStatus
-  'navigate': { view: 'settings' | 'search'; path?: string }
+  navigate: { view: 'settings' | 'search'; path?: string }
 }
 
 export type MemologEventName = keyof MemologEvents

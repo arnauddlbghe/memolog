@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
-
 import type { ConversationSummary } from '@shared/types'
 
 import StateBubble from './StateBubble.vue'
@@ -10,29 +8,7 @@ import { useUiStore } from '../stores/ui'
 const conversations = useConversationsStore()
 const ui = useUiStore()
 
-const emit = defineEmits<{ create: [name: string] }>()
-
-/**
- * Nommer une conversation se fait sur place.
- * (Et non dans une boîte de dialogue : Electron ne fournit pas `prompt`.)
- */
-const naming = ref(false)
-const draft = ref('')
-const field = ref<HTMLInputElement | null>(null)
-
-async function startCreate(): Promise<void> {
-  draft.value = ''
-  naming.value = true
-  await nextTick()
-  field.value?.focus()
-}
-
-function commitCreate(): void {
-  const name = draft.value.trim()
-  naming.value = false
-  draft.value = ''
-  if (name !== '') emit('create', name)
-}
+const emit = defineEmits<{ create: [] }>()
 
 function open(conversation: ConversationSummary): void {
   void conversations.open(conversation.path)
@@ -42,34 +18,54 @@ function open(conversation: ConversationSummary): void {
 
 <template>
   <aside class="sidebar">
-    <div class="sidebar__top">
-      <input
-        v-if="naming"
-        ref="field"
-        v-model="draft"
-        class="new new--input"
-        type="text"
-        placeholder="Nom de la conversation…"
-        aria-label="Nom de la nouvelle conversation"
-        @blur="commitCreate"
-        @keydown.enter.prevent="commitCreate"
-        @keydown.esc.prevent="naming = false"
-      />
-      <button v-else class="new" type="button" @click="startCreate">
-        + Nouvelle conversation
+    <header class="sidebar__top">
+      <button
+        class="icon"
+        type="button"
+        title="Masquer la liste (⌘\)"
+        aria-label="Masquer la liste"
+        @click="ui.toggleSidebar()"
+      >
+        «
       </button>
-    </div>
+      <span class="sidebar__title faint">Conversations</span>
+      <button
+        class="icon icon--new"
+        type="button"
+        title="Nouvelle conversation"
+        aria-label="Nouvelle conversation"
+        @click="emit('create')"
+      >
+        +
+      </button>
+    </header>
 
     <nav class="sidebar__list" aria-label="Conversations">
       <section v-for="group in conversations.groups" :key="group.date" class="group">
-        <h2 class="group__title">{{ group.label }}</h2>
+        <button
+          class="group__title"
+          type="button"
+          :aria-expanded="!ui.isDayCollapsed(group.date)"
+          :title="ui.isDayCollapsed(group.date) ? 'Afficher ce jour' : 'Masquer ce jour'"
+          @click="ui.toggleDay(group.date)"
+        >
+          <span
+            class="group__chevron"
+            :class="{ 'group__chevron--shut': ui.isDayCollapsed(group.date) }"
+          >
+            ▾
+          </span>
+          {{ group.label }}
+          <span class="group__count">{{ group.conversations.length }}</span>
+        </button>
 
-        <ul>
+        <ul v-show="!ui.isDayCollapsed(group.date)">
           <li v-for="item in group.conversations" :key="item.path">
             <button
               class="row"
               :class="{
-                'row--current': ui.view === 'conversation' && conversations.currentPath === item.path,
+                'row--current':
+                  ui.view === 'conversation' && conversations.currentPath === item.path,
                 'row--done': item.state === 'termine'
               }"
               type="button"
@@ -84,7 +80,7 @@ function open(conversation: ConversationSummary): void {
       </section>
 
       <p v-if="conversations.groups.length === 0 && !conversations.loading" class="empty faint">
-        Aucune conversation. Créez-en une pour commencer à écrire.
+        Aucune conversation. Appuyez sur + pour commencer à écrire.
       </p>
     </nav>
 
@@ -112,28 +108,46 @@ function open(conversation: ConversationSummary): void {
 }
 
 .sidebar__top {
-  padding: 10px 10px 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 4px;
 }
 
-.new {
-  width: 100%;
-  padding: 6px 10px;
+.sidebar__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
-  background: var(--bg-raised);
-  font-size: 12.5px;
-  text-align: left;
+  font-size: 14px;
+  line-height: 1;
   color: var(--text-muted);
 }
 
-.new:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+.icon:hover {
+  background: var(--bg-raised);
+  color: var(--text);
 }
 
-.new--input {
-  color: var(--text);
-  font-size: 12.5px;
+.icon--new {
+  font-size: 17px;
+}
+
+.icon--new:hover {
+  color: var(--accent);
 }
 
 .sidebar__list {
@@ -144,17 +158,42 @@ function open(conversation: ConversationSummary): void {
 }
 
 .group + .group {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .group__title {
-  margin: 0 0 3px;
-  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
   font-size: 10.5px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-faint);
+  text-align: left;
+}
+
+.group__title:hover {
+  background: var(--bg-raised);
+  color: var(--text-muted);
+}
+
+.group__chevron {
+  display: inline-block;
+  font-size: 9px;
+  transition: transform 120ms ease;
+}
+
+.group__chevron--shut {
+  transform: rotate(-90deg);
+}
+
+.group__count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 
 .group ul {
